@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "sensitivity": "medium",
+  "min_interval_ms": 200,
+  "max_interval_ms": 800,
+  "cooldown_ms": 2000,
+  "sound_enabled": true,
+  "suppress_during_speech": true,
+  "input_device": null
+}

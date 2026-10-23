@@ -1,0 +1,2013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALEX Dashboard — Personal AI Assistant for Aditya Rajak</title>
+  <script src="/static/crypto.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:        #040711;
+      --surface:   rgba(12, 20, 36, 0.72);
+      --surface-2: rgba(18, 30, 54, 0.85);
+      --border:    rgba(0, 212, 255, 0.14);
+      --border-hl: rgba(0, 212, 255, 0.38);
+      --accent:    #00d4ff;
+      --accent-2:  #6366f1;
+      --adim:      rgba(0, 212, 255, 0.12);
+      --text:      #e2f3f8;
+      --muted:     #6b8299;
+      --green:     #10b981;
+      --gdim:      rgba(16, 185, 129, 0.14);
+      --red:       #f43f5e;
+    }
+    html, body {
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'SF Pro Display', sans-serif;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+
+    /* ── HEADER ── */
+    header {
+      flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+      padding: 12px 18px; border-bottom: 1px solid var(--border);
+      background: rgba(4, 7, 17, 0.94);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    }
+    .brand-col { display: flex; flex-direction: column; gap: 1px; }
+    .logo {
+      font-size: 16px; font-weight: 800; letter-spacing: 5px; color: var(--text);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .logo-core {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--accent); box-shadow: 0 0 10px var(--accent);
+    }
+    .logo em { color: var(--accent); font-style: normal; }
+    .owner-tag {
+      font-size: 9px; font-weight: 600; letter-spacing: 1.2px; text-transform: uppercase;
+      color: var(--muted);
+    }
+    .pill {
+      display: flex; align-items: center; gap: 6px; padding: 4px 11px;
+      border-radius: 99px; background: var(--surface); border: 1px solid var(--border);
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+      color: var(--muted); transition: all 0.3s;
+    }
+    .pill.on { background: var(--gdim); border-color: rgba(16, 185, 129, 0.35); color: var(--green); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); transition: background 0.3s; }
+    .pill.on .dot { background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 2s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .spacer { flex: 1; }
+    .enc-badge {
+      font-size: 9px; font-weight: 700; letter-spacing: 1.5px; padding: 4px 9px;
+      border-radius: 6px; display: none;
+    }
+    .enc-badge.on  { display: block; background: rgba(0, 212, 255, 0.08); border: 1px solid rgba(0, 212, 255, 0.25); color: var(--accent); }
+    .enc-badge.off { display: block; background: rgba(244, 63, 94, 0.08); border: 1px solid rgba(244, 63, 94, 0.25); color: var(--red); }
+    .url { font-size: 10px; font-family: monospace; color: var(--muted); padding: 4px 9px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; }
+
+    /* ── FEED ── */
+    main { flex: 1; overflow-y: auto; padding: 16px 18px 8px; display: flex; flex-direction: column; gap: 12px; }
+    main::-webkit-scrollbar { width: 4px; }
+    main::-webkit-scrollbar-thumb { background: rgba(0, 212, 255, 0.2); border-radius: 3px; }
+    .msg { max-width: 82%; padding: 11px 15px; border-radius: 14px; font-size: 14px; line-height: 1.55; animation: pop 0.18s ease; }
+    @keyframes pop { from { opacity:0; transform:translateY(4px); } }
+    .msg-a   { align-self:flex-start; background:var(--adim); border:1px solid rgba(0, 212, 255, 0.22); border-bottom-left-radius:3px; }
+    .msg-u   { align-self:flex-end; background:var(--surface); border:1px solid var(--border); border-bottom-right-radius:3px; }
+    .msg-sys { align-self:center; font-size:11px; color:var(--muted); padding:2px 0; background:transparent; border:none; letter-spacing:0.4px; }
+    .lbl { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; opacity:0.65; margin-bottom:5px; }
+    .msg-a .lbl { color:var(--accent); }
+    .msg-u .lbl { color:var(--muted); text-align:right; }
+
+    /* ── FILE CARD ── */
+    .msg-file {
+      align-self: flex-end;
+      background: var(--surface-2); border: 1px solid var(--border);
+      border-radius: 14px; border-bottom-right-radius: 3px;
+      padding: 12px 15px; display: flex; align-items: center; gap: 12px;
+      max-width: 82%; animation: pop 0.18s ease;
+    }
+    .fc-icon { font-size: 26px; flex-shrink: 0; }
+    .fc-meta { flex: 1; min-width: 0; }
+    .fc-lbl  { font-size:9px; font-weight:700; letter-spacing:2px; text-transform:uppercase; opacity:0.5; color:var(--muted); margin-bottom:4px; }
+    .fc-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fc-size { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .fc-bar-wrap { height: 3px; background: rgba(255,255,255,0.08); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+    .fc-bar { height: 100%; width: 0%; background: var(--accent); border-radius: 2px; transition: width 0.12s linear; }
+    .fc-status { font-size: 10px; font-weight: 700; letter-spacing: 1px; flex-shrink: 0; color: var(--muted); }
+    .fc-status.done { color: var(--green); }
+    .fc-status.err  { color: var(--red); }
+    .fc-dl { display:block; margin-top:6px; font-size:11px; color:var(--accent); text-decoration:none; font-weight:600; }
+    .fc-dl:hover { opacity: 0.8; }
+
+    /* ── FOOTER ── */
+    footer {
+      flex-shrink:0; padding:12px 16px; border-top:1px solid var(--border);
+      background:rgba(4, 7, 17, 0.95); backdrop-filter: blur(14px);
+      display:flex; gap:8px; align-items:center;
+    }
+    #inp {
+      flex:1; padding:11px 15px; background:var(--surface); border:1.5px solid var(--border);
+      border-radius:12px; color:var(--text); font-size:14px; outline:none; transition:border-color 0.18s, box-shadow 0.18s;
+    }
+    #inp:focus { border-color: var(--accent); box-shadow: 0 0 10px rgba(0, 212, 255, 0.18); }
+    #inp::placeholder { color: var(--muted); }
+    .btn { padding:11px 15px; border:none; border-radius:12px; font-size:11px; font-weight:700; letter-spacing:1.5px; cursor:pointer; transition:opacity 0.15s,transform 0.1s; }
+    .btn:active { transform: scale(0.96); }
+    .btn:hover  { opacity: 0.88; }
+    .btn-send { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #000d14; font-weight: 800; }
+    .btn-wake { background:var(--surface); border:1px solid var(--border); color:var(--muted); display:none; }
+    .btn-wake.show { display:block; color:var(--green); border-color:rgba(16, 185, 129, 0.35); }
+    .btn-attach {
+      background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+      padding: 11px 13px; font-size: 16px; line-height: 1; border-radius: 12px;
+      cursor: pointer; transition: opacity 0.15s, transform 0.1s; display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .btn-attach:hover  { opacity: 0.88; border-color: var(--accent); color: var(--accent); }
+    .btn-attach:active { transform: scale(0.96); }
+
+    /* ── MIC BUTTON ── */
+    #mic-btn {
+      background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+      padding: 11px 13px; font-size: 16px; line-height: 1; border-radius: 12px;
+      cursor: pointer; transition: opacity 0.15s, transform 0.1s, background 0.2s, border-color 0.2s;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    #mic-btn:hover  { opacity: 0.88; border-color: var(--accent); color: var(--accent); }
+    #mic-btn:active { transform: scale(0.96); }
+    #mic-btn.recording {
+      background: rgba(244, 63, 94, 0.18); border-color: rgba(244, 63, 94, 0.5); color: var(--red);
+      animation: mic-pulse 1s ease-in-out infinite;
+    }
+    #mic-btn.unsupported { opacity: 0.3; cursor: not-allowed; }
+    @keyframes mic-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.65;transform:scale(0.97)} }
+
+    /* ── TOAST ── */
+    #toast {
+      position:fixed; top:66px; left:50%; transform:translateX(-50%) translateY(-8px);
+      background:rgba(16, 185, 129, 0.18); border:1px solid rgba(16, 185, 129, 0.45);
+      color:var(--green); font-size:12px; font-weight:700; letter-spacing:1px;
+      padding:7px 18px; border-radius:99px;
+      opacity:0; transition:opacity 0.22s,transform 0.22s;
+      pointer-events:none; white-space:nowrap;
+    }
+    #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+  <div id="toast"></div>
+  <header>
+    <div class="brand-col">
+      <div class="logo"><span class="logo-core"></span><em>A</em>LEX</div>
+      <div class="owner-tag">Aditya Rajak</div>
+    </div>
+    <div class="pill" id="pill"><span class="dot"></span><span id="st">Connecting</span></div>
+    <div class="enc-badge" id="enc">AES-256</div>
+    <button class="btn" id="cmd-btn" onclick="toggleCommandCenter()" style="background:var(--surface);border:1px solid var(--border-hl);color:var(--accent);font-size:10px;font-weight:700;padding:5px 12px;border-radius:8px;">📊 COMMAND CENTER</button>
+    <div class="spacer"></div>
+    <div class="url">__IP__:__PORT__</div>
+  </header>
+  <main id="feed"></main>
+  <div id="cmd-overlay" style="display:none; position:fixed; inset:60px 0 60px 0; background:rgba(4,7,17,0.96); backdrop-filter:blur(16px); z-index:100; overflow-y:auto; padding:20px; flex-direction:column; gap:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:10px;">
+      <div style="font-size:16px; font-weight:800; color:var(--accent); letter-spacing:2px; display:flex; align-items:center; gap:8px;">
+        <span>◈ PERSONAL AI COMMAND CENTER</span>
+        <span style="font-size:10px; background:var(--adim); border:1px solid var(--border); padding:3px 8px; border-radius:4px; color:var(--text);">REAL TELEMETRY</span>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn" onclick="fetchTelemetry()" style="background:var(--surface); border:1px solid var(--border); color:var(--accent); font-size:10px; padding:6px 12px;">🔄 REFRESH</button>
+        <button class="btn" onclick="toggleCommandCenter()" style="background:var(--surface); border:1px solid var(--border); color:var(--muted); font-size:10px; padding:6px 12px;">✕ CLOSE</button>
+      </div>
+    </div>
+
+    <!-- Grid Container -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:16px;">
+      <!-- CARD 1: Core System & Security -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <div style="font-size:11px; font-weight:800; color:var(--accent); letter-spacing:1.5px; margin-bottom:12px;">🛡️ SYSTEM & SECURITY</div>
+        <div style="font-size:12px; display:flex; flex-direction:column; gap:8px;" id="sec-telemetry">
+          <div>ALEX State: <span style="color:var(--green); font-weight:700;" id="tel-state">ONLINE</span></div>
+          <div>Owner Addressing: <span style="color:var(--text); font-weight:700;" id="tel-owner">Sir</span></div>
+          <div>Computer Control: <span style="color:var(--green);" id="tel-comp-ctrl">Available</span></div>
+          <div>Microphone & Audio: <span style="color:var(--text);" id="tel-audio">Operational</span></div>
+          <div>Smart Clap Wake: <span style="color:var(--green); font-weight:700;" id="tel-clap">Active</span> <button class="btn" style="padding:2px 8px; font-size:10px; margin-left:6px;" onclick="testClapWake()">👏 Test Clap</button></div>
+          <div>Network & API: <span style="color:var(--green);" id="tel-net">Internet Connected / Gemini OK</span></div>
+        </div>
+      </div>
+
+      <!-- CARD 2: Hardware Resources -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <div style="font-size:11px; font-weight:800; color:var(--accent); letter-spacing:1.5px; margin-bottom:12px;">⚡ HARDWARE TELEMETRY</div>
+        <div style="display:flex; flex-direction:column; gap:10px;" id="hw-telemetry">
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+              <span>CPU Usage</span><span id="tel-cpu-val">0%</span>
+            </div>
+            <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div id="tel-cpu-bar" style="height:100%; width:0%; background:var(--accent); transition:width 0.3s;"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+              <span>Memory (RAM)</span><span id="tel-ram-val">0%</span>
+            </div>
+            <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div id="tel-ram-bar" style="height:100%; width:0%; background:var(--accent-2); transition:width 0.3s;"></div>
+            </div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; font-size:11px; margin-bottom:4px;">
+              <span>Disk Space</span><span id="tel-disk-val">0%</span>
+            </div>
+            <div style="height:6px; background:rgba(255,255,255,0.06); border-radius:3px; overflow:hidden;">
+              <div id="tel-disk-bar" style="height:100%; width:0%; background:var(--green); transition:width 0.3s;"></div>
+            </div>
+          </div>
+          <div style="font-size:11px; color:var(--muted); margin-top:4px;">GPU: <span id="tel-gpu" style="color:var(--text);">Detecting...</span></div>
+        </div>
+      </div>
+
+      <!-- CARD 3: Active Task Center -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div style="font-size:11px; font-weight:800; color:var(--accent); letter-spacing:1.5px;">⚙️ TASK CENTER</div>
+          <span style="font-size:10px; color:var(--muted);" id="tel-autonomy">Autonomy: NORMAL</span>
+        </div>
+        <div id="tel-tasks-list" style="display:flex; flex-direction:column; gap:8px; max-height:160px; overflow-y:auto; font-size:12px;">
+          <div style="color:var(--muted);">No active tasks running.</div>
+        </div>
+      </div>
+
+      <!-- CARD 4: Project Management Hub -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div style="font-size:11px; font-weight:800; color:var(--accent); letter-spacing:1.5px;">💼 PROJECT HUB</div>
+          <span style="font-size:10px; color:var(--green);" id="tel-proj-health">HEALTHY</span>
+        </div>
+        <div id="tel-proj-info" style="font-size:12px; display:flex; flex-direction:column; gap:6px;">
+          <div>Active Project: <b id="tel-act-proj" style="color:var(--text);">SkillSum</b></div>
+          <div style="color:var(--muted); font-size:11px;">Git Status: <span id="tel-proj-git" style="color:var(--text);">Clean</span></div>
+          <div id="tel-proj-list" style="margin-top:6px; display:flex; flex-wrap:wrap; gap:4px;"></div>
+        </div>
+      </div>
+
+      <!-- CARD 5: Proactive Intelligence & Reminders -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div style="font-size:11px; font-weight:800; color:var(--accent); letter-spacing:1.5px;">🔔 PROACTIVE & REMINDERS</div>
+          <button class="btn" id="dnd-btn" onclick="toggleDnd()" style="background:rgba(244,63,94,0.1); border:1px solid rgba(244,63,94,0.3); color:var(--red); font-size:9px; padding:3px 8px;">DND: OFF</button>
+        </div>
+        <div id="tel-proactive-info" style="font-size:12px; display:flex; flex-direction:column; gap:6px;">
+          <div style="font-size:11px; color:var(--muted);">Quiet Hours: <span id="tel-quiet">22:00 - 07:00</span></div>
+          <div id="tel-reminders" style="display:flex; flex-direction:column; gap:4px; margin-top:4px;">
+            <div style="color:var(--muted); font-size:11px;">No reminders scheduled for today.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CARD 6: Recent Actions & Audit Trail -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px;">
+        <div style="font-size:11px; font-weight:800; color:var(--accent); letter-spacing:1.5px; margin-bottom:12px;">📜 AUDIT TIMELINE</div>
+        <div id="tel-timeline-list" style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto; font-size:11px;">
+          <div style="color:var(--muted);">No actions recorded.</div>
+        </div>
+      </div>
+
+      <!-- CARD 7: Knowledge Brain & Long-Term Memory -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px; grid-column:1 / -1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:12px; font-weight:800; color:var(--accent); letter-spacing:1.5px; display:flex; align-items:center; gap:8px;">
+            <span>🧠 KNOWLEDGE BRAIN & LONG-TERM MEMORY</span>
+            <span id="brain-stats-badge" style="font-size:10px; background:var(--adim); border:1px solid var(--border); padding:2px 8px; border-radius:4px; color:var(--text);">Loading stats...</span>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn" onclick="indexActiveWorkspace()" style="background:var(--surface); border:1px solid var(--border); color:var(--accent); font-size:10px; padding:4px 8px;">📂 INDEX WORKSPACE</button>
+            <button class="btn" onclick="backupBrain()" style="background:var(--surface); border:1px solid var(--border); color:var(--green); font-size:10px; padding:4px 8px;">💾 BACKUP SQLITE</button>
+            <button class="btn" onclick="exportBrain()" style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:10px; padding:4px 8px;">📥 EXPORT JSON</button>
+            <button class="btn" onclick="clearSessionBrain()" style="background:var(--surface); border:1px solid var(--border); color:var(--red); font-size:10px; padding:4px 8px;">🧹 CLEAR SESSION</button>
+          </div>
+        </div>
+
+        <!-- Brain Search & Filter Bar -->
+        <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+          <input id="brain-search-inp" placeholder="Search memories, facts, tech stack, documents..." style="flex:1; min-width:200px; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+          <select id="brain-cat-filter" onchange="loadBrainUI()" style="padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+            <option value="">All Categories</option>
+            <option value="identity">Identity</option>
+            <option value="preferences">Preferences</option>
+            <option value="projects">Projects</option>
+            <option value="notes">Notes</option>
+            <option value="session_summary">Session Summaries</option>
+          </select>
+          <button class="btn" onclick="searchBrain()" style="background:var(--accent); color:#000d14; font-weight:700; font-size:11px; padding:8px 14px;">SEARCH</button>
+          <button class="btn" onclick="saveBrainFactPrompt()" style="background:var(--surface); border:1px solid var(--border); color:var(--accent); font-size:11px; padding:8px 12px;">+ ADD FACT</button>
+        </div>
+
+        <!-- Memories Table / Feed -->
+        <div id="brain-mem-container" style="max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; font-size:11px;">
+          <div style="color:var(--muted); padding:10px; text-align:center;">Loading knowledge records...</div>
+        </div>
+      </div>
+
+      <!-- CARD 8: Skills Engine & Modular Plugins -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px; grid-column:1 / -1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:12px; font-weight:800; color:var(--accent); letter-spacing:1.5px; display:flex; align-items:center; gap:8px;">
+            <span>⚡ SKILLS ENGINE & PLUGIN ECOSYSTEM</span>
+            <span id="skills-stats-badge" style="font-size:10px; background:var(--adim); border:1px solid var(--border); padding:2px 8px; border-radius:4px; color:var(--text);">Loading skills...</span>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn" onclick="installPluginPrompt()" style="background:var(--surface); border:1px solid var(--border); color:var(--green); font-size:10px; padding:4px 8px;">+ INSTALL PLUGIN</button>
+            <button class="btn" onclick="loadSkillsUI()" style="background:var(--surface); border:1px solid var(--border); color:var(--accent); font-size:10px; padding:4px 8px;">🔄 REFRESH</button>
+          </div>
+        </div>
+
+        <!-- Skills Filter Bar -->
+        <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+          <input id="skills-search-inp" placeholder="Search skills by name, ID, or tags..." oninput="loadSkillsUI()" style="flex:1; min-width:200px; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+          <select id="skills-cat-filter" onchange="loadSkillsUI()" style="padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+            <option value="">All Categories</option>
+            <option value="Computer and Desktop">Computer & Desktop</option>
+            <option value="Browser and Web">Browser & Web</option>
+            <option value="Documents and Creativity">Documents & Creativity</option>
+            <option value="Development">Development</option>
+            <option value="Personal Productivity">Personal Productivity</option>
+            <option value="System Intelligence">System Intelligence</option>
+          </select>
+          <select id="skills-status-filter" onchange="loadSkillsUI()" style="padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+            <option value="">All Statuses</option>
+            <option value="ENABLED">Enabled</option>
+            <option value="DISABLED">Disabled</option>
+            <option value="MISSING_DEPS">Missing Deps</option>
+          </select>
+        </div>
+
+        <!-- Skills Cards Container -->
+        <div id="skills-list-container" style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; font-size:11px;">
+          <div style="color:var(--muted); padding:10px; text-align:center;">Loading skills inventory...</div>
+        </div>
+      </div>
+
+      <!-- CARD 9: Multi-Step Workflow Orchestrator -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px; grid-column:1 / -1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:12px; font-weight:800; color:var(--accent); letter-spacing:1.5px; display:flex; align-items:center; gap:8px;">
+            <span>🔄 MULTI-STEP WORKFLOW ORCHESTRATOR</span>
+            <span id="wf-stats-badge" style="font-size:10px; background:var(--adim); border:1px solid var(--border); padding:2px 8px; border-radius:4px; color:var(--text);">Loading workflows...</span>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn" onclick="submitWorkflowPrompt()" style="background:var(--surface); border:1px solid var(--border); color:var(--green); font-size:10px; padding:4px 8px;">+ NEW WORKFLOW</button>
+            <button class="btn" onclick="loadWorkflowsUI()" style="background:var(--surface); border:1px solid var(--border); color:var(--accent); font-size:10px; padding:4px 8px;">🔄 REFRESH</button>
+          </div>
+        </div>
+
+        <!-- Workflow Filters -->
+        <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+          <input id="wf-search-inp" placeholder="Search workflow request or ID..." oninput="loadWorkflowsUI()" style="flex:1; min-width:200px; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+          <select id="wf-status-filter" onchange="loadWorkflowsUI()" style="padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+            <option value="">All Statuses</option>
+            <option value="RUNNING">Running</option>
+            <option value="PAUSED">Paused</option>
+            <option value="AWAITING_APPROVAL">Awaiting Approval</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="FAILED">Failed</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+        </div>
+
+        <!-- Workflows Container -->
+        <div id="workflows-list-container" style="max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; font-size:11px;">
+          <div style="color:var(--muted); padding:10px; text-align:center;">No active workflows.</div>
+        </div>
+      </div>
+
+      <!-- CARD 10: Software Engineering & Self-Debugging Lab -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px; grid-column:1 / -1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:12px; font-weight:800; color:var(--accent); letter-spacing:1.5px; display:flex; align-items:center; gap:8px;">
+            <span>🛠️ SOFTWARE ENGINEERING & SELF-DEBUGGING LAB</span>
+            <span id="devlab-stats-badge" style="font-size:10px; background:var(--adim); border:1px solid var(--border); padding:2px 8px; border-radius:4px; color:var(--text);">Loading findings...</span>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn" onclick="scanDevLab()" style="background:var(--surface); border:1px solid var(--border); color:var(--green); font-size:10px; padding:4px 8px;">🔍 SCAN REPO</button>
+            <button class="btn" onclick="runEnvDoctor()" style="background:var(--surface); border:1px solid var(--border); color:var(--accent); font-size:10px; padding:4px 8px;">🩺 ENV DOCTOR</button>
+            <button class="btn" onclick="runSelfDiagnostics()" style="background:var(--surface); border:1px solid var(--border); color:#c084fc; font-size:10px; padding:4px 8px;">🔬 SELF DIAGNOSTICS</button>
+            <button class="btn" onclick="loadDevLabUI()" style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:10px; padding:4px 8px;">🔄 REFRESH</button>
+          </div>
+        </div>
+
+        <!-- DevLab Filter & Search Bar -->
+        <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+          <input id="devlab-search-inp" placeholder="Search defect by title, file, or ID..." oninput="loadDevLabUI()" style="flex:1; min-width:200px; padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+          <select id="devlab-status-filter" onchange="loadDevLabUI()" style="padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+            <option value="">All Statuses</option>
+            <option value="CONFIRMED">Confirmed</option>
+            <option value="UNCONFIRMED">Unconfirmed</option>
+            <option value="IN_PROGRESS">In Progress</option>
+            <option value="FIXED">Fixed</option>
+            <option value="VERIFIED">Verified</option>
+            <option value="UNRESOLVED">Unresolved</option>
+            <option value="ROLLED_BACK">Rolled Back</option>
+          </select>
+          <select id="devlab-sev-filter" onchange="loadDevLabUI()" style="padding:8px 12px; background:var(--surface); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:12px; outline:none;">
+            <option value="">All Severities</option>
+            <option value="CRITICAL">Critical</option>
+            <option value="HIGH">High</option>
+            <option value="MEDIUM">Medium</option>
+            <option value="LOW">Low</option>
+          </select>
+        </div>
+
+        <!-- Findings Container -->
+        <div id="devlab-findings-container" style="max-height:360px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; font-size:11px;">
+          <div style="color:var(--muted); padding:10px; text-align:center;">No findings discovered yet. Click "SCAN REPO" to inspect codebase.</div>
+        </div>
+      </div>
+
+      <!-- CARD 11: Multimodal Creation Studio -->
+      <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:12px; padding:16px; grid-column:1 / -1;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:12px; font-weight:800; color:var(--accent); letter-spacing:1.5px; display:flex; align-items:center; gap:8px;">
+            <span>🎨 MULTIMODAL CREATION STUDIO</span>
+            <span id="creation-stats-badge" style="font-size:10px; background:var(--adim); border:1px solid var(--border); padding:2px 8px; border-radius:4px; color:var(--text);">Loading studio...</span>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn" onclick="submitCreationPrompt()" style="background:var(--surface); border:1px solid var(--border); color:var(--green); font-size:10px; padding:4px 8px;">+ NEW CREATION</button>
+            <button class="btn" onclick="checkToolCapabilities()" style="background:var(--surface); border:1px solid var(--border); color:var(--accent); font-size:10px; padding:4px 8px;">⚙️ TOOLS STATUS</button>
+            <button class="btn" onclick="loadCreationUI()" style="background:var(--surface); border:1px solid var(--border); color:var(--text); font-size:10px; padding:4px 8px;">🔄 REFRESH</button>
+          </div>
+        </div>
+
+        <!-- Quick Create Action Chips -->
+        <div style="display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap;">
+          <button class="btn" onclick="quickCreate('pptx', 'Professional Strategic Overview Presentation')" style="font-size:9px; background:var(--surface); color:var(--text); border:1px solid var(--border); padding:3px 8px;">📊 PPTX Slide Deck</button>
+          <button class="btn" onclick="quickCreate('docx', 'Executive Project Deliverable Report')" style="font-size:9px; background:var(--surface); color:var(--text); border:1px solid var(--border); padding:3px 8px;">📝 DOCX Report</button>
+          <button class="btn" onclick="quickCreate('xlsx', 'Project Financial & Milestone Ledger')" style="font-size:9px; background:var(--surface); color:var(--text); border:1px solid var(--border); padding:3px 8px;">📈 XLSX Spreadsheet</button>
+          <button class="btn" onclick="quickCreate('svg', 'System Architecture & Flowchart')" style="font-size:9px; background:var(--surface); color:var(--text); border:1px solid var(--border); padding:3px 8px;">📐 SVG Diagram</button>
+          <button class="btn" onclick="quickCreate('obj', 'Parametric Robot 3D Mesh')" style="font-size:9px; background:var(--surface); color:var(--text); border:1px solid var(--border); padding:3px 8px;">🧊 3D OBJ Model</button>
+        </div>
+
+        <!-- Creation Deliverables Feed -->
+        <div id="creation-tasks-container" style="max-height:360px; overflow-y:auto; display:flex; flex-direction:column; gap:10px; font-size:11px;">
+          <div style="color:var(--muted); padding:10px; text-align:center;">No deliverables generated yet. Click "+ NEW CREATION" or a quick chip above.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer>
+    <input id="inp" placeholder="Send a command to ALEX…" autocomplete="off">
+    <label class="btn-attach" for="file-inp" title="Send file">📎</label>
+    <input type="file" id="file-inp" multiple accept="*/*" style="display:none">
+    <button id="mic-btn" onclick="doMic()" title="Voice command">🎤</button>
+    <button class="btn btn-wake" id="wake" onclick="doWake()">WAKE</button>
+    <button class="btn" id="lock-btn" onclick="doLock()" title="Lock ALEX" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);padding:8px 10px;">🔒</button>
+    <button class="btn" id="emerg-btn" onclick="doEmergency()" title="Emergency Stop" style="background:rgba(244,63,94,0.15);border:1px solid rgba(244,63,94,0.4);color:var(--red);padding:8px 10px;">🛑</button>
+    <button class="btn" id="brain-btn" onclick="toggleCommandCenter()" title="Knowledge Brain" style="background:var(--surface);border:1px solid var(--border);color:var(--accent);padding:8px 10px;">🧠 BRAIN</button>
+    <button class="btn" id="brief-btn" onclick="sendCmd('morning briefing')" title="Morning Briefing" style="background:var(--surface);border:1px solid var(--border);color:var(--accent);padding:8px 10px;">🌅</button>
+    <button class="btn" id="news-btn" onclick="sendCmd('aaj ki news batao')" title="Today's News" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;">📰</button>
+    <button class="btn" id="tl-btn" onclick="sendCmd('action timeline')" title="Action Timeline" style="background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 10px;">📜</button>
+    <button class="btn btn-send" onclick="doSend()">SEND</button>
+  </footer>
+
+  <script>
+    // ── Auth — bearer token ───────────────────────────────────────────────────
+    const _authToken  = sessionStorage.getItem('alex_token') || sessionStorage.getItem('jarvis_token');
+    const _sessionKey = sessionStorage.getItem('alex_key') || sessionStorage.getItem('jarvis_key');
+
+    if (!_authToken) {
+      location.replace('/login');
+    }
+
+    function _authHeader() { return { 'Authorization': `Bearer ${_authToken}` }; }
+    function _authFetch(url, opts = {}) {
+      opts.headers = Object.assign({}, opts.headers, _authHeader());
+      return fetch(url, opts);
+    }
+
+    // ── AES-256-CBC encryption (CryptoJS) ────────────────────────────────────
+    const _AES_SALT = 'ALEX-DASHBOARD-v2';
+    const _LEGACY_SALT = 'JARVIS-DASHBOARD-v1';
+    let _aesKey = null;
+
+    function _initCrypto(key) {
+      if (typeof CryptoJS === 'undefined') return false;
+      _aesKey = CryptoJS.SHA256(key + _AES_SALT);
+      return true;
+    }
+
+    function _encrypt(plaintext) {
+      if (!_aesKey || typeof CryptoJS === 'undefined') return null;
+      try {
+        const iv  = CryptoJS.lib.WordArray.random(16);
+        const enc = CryptoJS.AES.encrypt(
+          CryptoJS.enc.Utf8.parse(plaintext), _aesKey,
+          { iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 }
+        );
+        const ivHex = iv.toString(CryptoJS.enc.Hex);
+        const ctHex = enc.ciphertext.toString(CryptoJS.enc.Hex);
+        const hex   = ivHex + ctHex;
+        const bytes = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < bytes.length; i++)
+          bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+        return btoa(String.fromCharCode(...bytes));
+      } catch { return null; }
+    }
+
+    const _encReady = _sessionKey ? _initCrypto(_sessionKey) : false;
+    const encBadge  = document.getElementById('enc');
+    if (_encReady) { encBadge.className = 'enc-badge on'; }
+    else           { encBadge.className = 'enc-badge off'; encBadge.textContent = 'NO ENC'; }
+
+    // ── WebSocket ─────────────────────────────────────────────────────────────
+    const feed  = document.getElementById('feed');
+    const pill  = document.getElementById('pill');
+    const stTxt = document.getElementById('st');
+    const wake  = document.getElementById('wake');
+
+    const _wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const _wsUrl   = `${_wsProto}://${location.host}/ws?token=${encodeURIComponent(_authToken)}`;
+    const ws       = new WebSocket(_wsUrl);
+
+    ws.onopen    = () => { sys('Remote session active.'); toast('Connected to ALEX'); };
+    ws.onclose   = () => sys('Connection lost — refresh to reconnect.');
+    ws.onerror   = () => sys('Connection error.');
+    ws.onmessage = (e) => {
+      const m = JSON.parse(e.data);
+      if (m.type === 'log')           append(m.speaker, m.text);
+      if (m.type === 'status')        setStatus(m.state);
+      if (m.type === 'wake')          sys('Wake signal received — ALEX awake.');
+      if (m.type === 'sys')           sys(m.text);
+      if (m.type === 'briefing')      _onBriefingReceived(m.data);
+      if (m.type === 'file_received') _onFileReceived(m);
+    };
+
+    function _onBriefingReceived(b) {
+      if (!b) return;
+      let html = `<div style="padding:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:12px; margin:8px 0;">`;
+      html += `<div style="font-weight:800; color:var(--accent); font-size:14px; margin-bottom:6px;">🌅 MORNING BRIEFING — ${esc(b.date || '')}</div>`;
+      html += `<div style="font-size:12px; color:var(--text); margin-bottom:8px;">${esc(b.greeting || '')}</div>`;
+      if (b.weather && b.weather.available) {
+        html += `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⛅ Weather: <b style="color:var(--text)">${esc(b.weather.temp)} (${esc(b.weather.condition)})</b> in ${esc(b.weather.location)}</div>`;
+      }
+      if (b.system) {
+        html += `<div style="font-size:11px; color:var(--muted); margin-bottom:4px;">⚡ System: CPU ${esc(b.system.cpu)} | RAM ${esc(b.system.ram)} (${esc(b.system.status)})</div>`;
+      }
+      if (b.tasks) {
+        html += `<div style="font-size:11px; color:var(--muted); margin-bottom:6px;">💼 Project: <b style="color:var(--text)">${esc(b.tasks.project)}</b> (${b.tasks.pending_count} tasks pending)</div>`;
+      }
+      if (b.news && b.news.length) {
+        html += `<div style="font-size:11px; font-weight:700; color:var(--accent); margin-top:6px; margin-bottom:3px;">TODAY'S HEADLINES:</div>`;
+        b.news.slice(0, 4).forEach(it => {
+          html += `<div style="font-size:11px; margin-bottom:3px;">• <a href="${esc(it.url)}" target="_blank" style="color:var(--text); text-decoration:none;">${esc(it.headline)}</a> <span style="color:var(--muted)">(${esc(it.source)})</span></div>`;
+        });
+      }
+      html += `</div>`;
+      const d = document.createElement('div');
+      d.className = 'msg msg-sys';
+      d.innerHTML = html;
+      feed.appendChild(d);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function setStatus(s) {
+      if (s === 'active') {
+        pill.className = 'pill on'; stTxt.textContent = 'Active'; wake.classList.remove('show');
+      } else if (s === 'local_mode') {
+        pill.className = 'pill'; stTxt.textContent = 'Local Mode'; wake.classList.remove('show');
+      } else {
+        pill.className = 'pill'; stTxt.textContent = 'Sleeping'; wake.classList.add('show');
+      }
+    }
+
+    function append(speaker, text) {
+      const d = document.createElement('div');
+      const sp = (speaker || '').toLowerCase();
+      if (sp === 'alex' || sp === 'jarvis') {
+        d.className = 'msg msg-a';
+        d.innerHTML = `<div class="lbl">ALEX</div>${esc(text)}`;
+      } else {
+        d.className = 'msg msg-u';
+        d.innerHTML = `<div class="lbl">Sir</div>${esc(text)}`;
+      }
+      feed.appendChild(d);
+      feed.scrollTop = feed.scrollHeight;
+    }
+
+    function sys(text) {
+      const d = document.createElement('div');
+      d.className = 'msg msg-sys'; d.textContent = text;
+      feed.appendChild(d); feed.scrollTop = feed.scrollHeight;
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    // ── File helpers ──────────────────────────────────────────────────────────
+    function _fileIcon(name) {
+      const ext = (name.split('.').pop() || '').toLowerCase();
+      if (['jpg','jpeg','png','gif','webp','heic','heif','avif','bmp','svg'].includes(ext)) return '🖼️';
+      if (['mp4','mov','avi','mkv','webm','m4v','3gp'].includes(ext))                       return '🎬';
+      if (['mp3','m4a','wav','flac','aac','ogg','opus'].includes(ext))                      return '🎵';
+      if (['pdf'].includes(ext))                                                             return '📋';
+      if (['doc','docx','txt','md','rtf','odt'].includes(ext))                              return '📝';
+      if (['xls','xlsx','csv','ods'].includes(ext))                                         return '📊';
+      if (['ppt','pptx','odp'].includes(ext))                                               return '📑';
+      if (['zip','rar','7z','tar','gz','bz2','xz'].includes(ext))                          return '📦';
+      if (['apk','exe','dmg','deb','rpm','msi'].includes(ext))                              return '⚙️';
+      return '📎';
+    }
+
+    function _fmtSize(bytes) {
+      if (bytes < 1024)             return bytes + ' B';
+      if (bytes < 1024 * 1024)     return (bytes / 1024).toFixed(1) + ' KB';
+      if (bytes < 1024 ** 3)       return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+      return (bytes / 1024 ** 3).toFixed(2) + ' GB';
+    }
+
+    // ── File upload (phone → computer) ────────────────────────────────────────
+    function _uploadFile(file) {
+      const id = 'fc_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+
+      const card = document.createElement('div');
+      card.className = 'msg-file';
+      card.id = id;
+      card.innerHTML = `
+        <div class="fc-icon">${_fileIcon(file.name)}</div>
+        <div class="fc-meta">
+          <div class="fc-lbl">Sending</div>
+          <div class="fc-name">${esc(file.name)}</div>
+          <div class="fc-size">${_fmtSize(file.size)}</div>
+          <div class="fc-bar-wrap"><div class="fc-bar" id="${id}_bar"></div></div>
+        </div>
+        <div class="fc-status" id="${id}_st">0%</div>
+      `;
+      feed.appendChild(card);
+      feed.scrollTop = feed.scrollHeight;
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/upload');
+      xhr.setRequestHeader('Authorization', `Bearer ${_authToken}`);
+
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        const pct = Math.round(e.loaded / e.total * 100);
+        const bar = document.getElementById(`${id}_bar`);
+        const st  = document.getElementById(`${id}_st`);
+        if (bar) bar.style.width = pct + '%';
+        if (st)  st.textContent  = pct + '%';
+      };
+
+      xhr.onload = () => {
+        const bar  = document.getElementById(`${id}_bar`);
+        const st   = document.getElementById(`${id}_st`);
+        const meta = card.querySelector('.fc-meta');
+        const lbl  = card.querySelector('.fc-lbl');
+        if (xhr.status === 200) {
+          let savedName = file.name;
+          try { savedName = JSON.parse(xhr.responseText).name || file.name; } catch {}
+          const dlUrl = `/uploads/${encodeURIComponent(savedName)}?token=${encodeURIComponent(_authToken)}`;
+          if (bar)  { bar.style.width = '100%'; bar.style.background = 'var(--green)'; }
+          if (st)   { st.textContent = '✓'; st.className = 'fc-status done'; }
+          if (lbl)  lbl.textContent = 'Sent';
+          if (meta) meta.insertAdjacentHTML('beforeend',
+            `<a class="fc-dl" href="${dlUrl}" download="${esc(savedName)}">⬇ Download back</a>`);
+          toast('File sent!');
+        } else {
+          let errMsg = 'Upload failed';
+          try { errMsg = JSON.parse(xhr.responseText).error || errMsg; } catch {}
+          if (bar) bar.style.background = 'var(--red)';
+          if (st)  { st.textContent = 'ERR'; st.className = 'fc-status err'; }
+          if (lbl) lbl.textContent = errMsg;
+        }
+      };
+
+      xhr.onerror = () => {
+        const st  = document.getElementById(`${id}_st`);
+        const lbl = card.querySelector('.fc-lbl');
+        if (st)  { st.textContent = 'ERR'; st.className = 'fc-status err'; }
+        if (lbl) lbl.textContent = 'Connection error';
+      };
+
+      const fd = new FormData();
+      fd.append('file', file);
+      xhr.send(fd);
+    }
+
+    function _onFileReceived(m) {
+      const dlUrl = `/uploads/${encodeURIComponent(m.name)}?token=${encodeURIComponent(_authToken)}`;
+      const card  = document.createElement('div');
+      card.className = 'msg-file';
+      card.innerHTML = `
+        <div class="fc-icon">${_fileIcon(m.name)}</div>
+        <div class="fc-meta">
+          <div class="fc-lbl">Received</div>
+          <div class="fc-name">${esc(m.name)}</div>
+          <div class="fc-size">${_fmtSize(m.size)}</div>
+          <a class="fc-dl" href="${dlUrl}" download="${esc(m.name)}">⬇ Download</a>
+        </div>
+        <div class="fc-status done">✓</div>
+      `;
+      feed.appendChild(card);
+      feed.scrollTop = feed.scrollHeight;
+      toast('File received on computer!');
+    }
+
+    document.getElementById('file-inp').addEventListener('change', function () {
+      Array.from(this.files).forEach(_uploadFile);
+      this.value = '';
+    });
+
+    // ── Commands ──────────────────────────────────────────────────────────────
+    function doSend() {
+      const inp = document.getElementById('inp');
+      const txt = inp.value.trim();
+      if (!txt) return;
+      inp.value = '';
+      append('user', txt);
+      const enc  = _encrypt(txt);
+      const body = enc ? { enc } : { text: txt };
+      _authFetch('/api/command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
+
+    function doWake() {
+      sys('Sending wake signal…');
+      _authFetch('/api/wake', { method: 'POST' });
+    }
+
+    async function testClapWake() {
+      sys('Simulating double-clap wake event...');
+      const r = await _authFetch('/api/clap/test', { method: 'POST' });
+      if (r && r.ok) {
+        sys('👏 Double clap test successful! Activation chime triggered.');
+        toast('Double Clap Wake Triggered');
+      }
+    }
+
+    function doLock() {
+      sys('🔒 Locking ALEX...');
+      sendCmd('Alex, lock yourself');
+      toast('ALEX Locked');
+    }
+
+    function doEmergency() {
+      sys('🛑 Emergency Stop requested...');
+      sendCmd('emergency stop');
+      toast('🛑 Emergency Stop Triggered');
+    }
+
+    document.getElementById('inp').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
+    });
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    let _toastTimer;
+    function toast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg; t.classList.add('show');
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+    }
+
+    // ── Real-time Voice — PCM16 WebSocket → Gemini Live ──────────────────────
+    const micBtn  = document.getElementById('mic-btn');
+    let _voiceWs  = null;
+    let _audioCtx = null;
+    let _micStm   = null;
+    let _audioNd  = null;
+
+    function _micIdle() {
+      micBtn.innerHTML = '🎤';
+      micBtn.title     = 'Voice — tap to speak';
+      micBtn.classList.remove('recording');
+    }
+
+    function _f32toPcm16(f32, srcRate) {
+      let s = f32;
+      if (srcRate !== 16000) {
+        const ratio = srcRate / 16000;
+        const len   = Math.round(f32.length / ratio);
+        s = new Float32Array(len);
+        for (let i = 0; i < len; i++)
+          s[i] = f32[Math.min(Math.round(i * ratio), f32.length - 1)];
+      }
+      const out = new Int16Array(s.length);
+      for (let i = 0; i < s.length; i++)
+        out[i] = Math.max(-32768, Math.min(32767, Math.round(s[i] * 32768)));
+      return out.buffer;
+    }
+
+    function _showVoiceSetup() {
+      if (document.getElementById('voice-setup')) return;
+      const origin = location.origin;
+      const card = document.createElement('div');
+      card.id = 'voice-setup';
+      card.style.cssText = [
+        'align-self:stretch', 'background:rgba(0,212,255,0.06)',
+        'border:1px solid rgba(0,212,255,0.24)', 'border-radius:14px',
+        'padding:16px 18px', 'font-size:13px', 'line-height:1.8',
+        'animation:pop 0.18s ease'
+      ].join(';');
+      card.innerHTML =
+        '<div style="font-weight:700;color:var(--accent);letter-spacing:.5px;margin-bottom:10px">🎤 One-time voice setup</div>' +
+        '<ol style="padding-left:18px;color:#8899aa;margin:0;display:flex;flex-direction:column;gap:4px">' +
+        '<li>Open a new tab → go to <span style="background:rgba(255,255,255,0.07);padding:1px 6px;border-radius:4px;font-family:monospace;font-size:12px">chrome://flags</span></li>' +
+        '<li>Search: <strong style="color:#dde3ed">Insecure origins treated as secure</strong></li>' +
+        '<li>Paste this URL into the box:<br><span id="flags-url" style="background:rgba(255,255,255,0.07);padding:2px 8px;border-radius:4px;font-family:monospace;font-size:11px;user-select:all;cursor:pointer">' + esc(origin) + '</span></li>' +
+        '<li>Set to <strong style="color:#10b981">Enabled</strong> → tap <strong style="color:#dde3ed">Relaunch</strong></li>' +
+        '<li>Return here and tap 🎤</li>' +
+        '</ol>';
+      feed.appendChild(card);
+      feed.scrollTop = feed.scrollHeight;
+      card.querySelector('#flags-url').addEventListener('click', () => {
+        navigator.clipboard?.writeText(origin).then(() => toast('URL copied!')).catch(() => {});
+      });
+    }
+
+    async function doMic() {
+      if (_voiceWs) { _stopVoice(); return; }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        _showVoiceSetup();
+        return;
+      }
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true },
+        });
+      } catch (e) {
+        sys(e.name === 'NotAllowedError'
+          ? 'Microphone denied — tap the address bar lock and allow microphone.'
+          : 'Mic error: ' + e.message);
+        return;
+      }
+
+      let ctx;
+      try { ctx = new AudioContext({ sampleRate: 16000 }); }
+      catch (_) { ctx = new AudioContext(); }
+      if (ctx.state === 'suspended') await ctx.resume();
+
+      const wsProto = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(
+        `${wsProto}://${location.host}/ws/phone-audio?token=${encodeURIComponent(_authToken)}`
+      );
+      ws.binaryType = 'arraybuffer';
+
+      ws.onopen = async () => {
+        const rate = ctx.sampleRate;
+        const src  = ctx.createMediaStreamSource(stream);
+
+        const wCode = `class A extends AudioWorkletProcessor{process(i){const c=i[0]?.[0];if(c)this.port.postMessage(c.slice());return true;}}registerProcessor('a',A);`;
+        try {
+          const burl = URL.createObjectURL(new Blob([wCode], { type: 'application/javascript' }));
+          await ctx.audioWorklet.addModule(burl);
+          URL.revokeObjectURL(burl);
+          const nd = new AudioWorkletNode(ctx, 'a');
+          let _pbuf = [], _plen = 0;
+          nd.port.onmessage = e => {
+            const chunk = new Int16Array(_f32toPcm16(e.data, rate));
+            _pbuf.push(chunk); _plen += chunk.length;
+            if (_plen >= 1024) {
+              const out = new Int16Array(_plen); let off = 0;
+              for (const c of _pbuf) { out.set(c, off); off += c.length; }
+              if (ws.readyState === 1) ws.send(out.buffer);
+              _pbuf = []; _plen = 0;
+            }
+          };
+          src.connect(nd);
+          _audioNd = nd;
+        } catch (_) {
+          const sp = ctx.createScriptProcessor(4096, 1, 1);
+          sp.onaudioprocess = e => {
+            if (ws.readyState === 1) ws.send(_f32toPcm16(e.inputBuffer.getChannelData(0), rate));
+          };
+          src.connect(sp); sp.connect(ctx.destination);
+          _audioNd = sp;
+        }
+
+        micBtn.innerHTML = '⏹';
+        micBtn.title     = 'Tap to stop';
+        micBtn.classList.add('recording');
+        sys('Voice live — speak now, Sir');
+        toast('🎤 Live');
+      };
+
+      ws.onclose = () => { _stopVoice(); };
+      ws.onerror = () => { sys('Voice connection failed.'); _stopVoice(); };
+
+      _voiceWs  = ws;
+      _audioCtx = ctx;
+      _micStm   = stream;
+    }
+
+    function _stopVoice() {
+      if (_audioNd)  { try { _audioNd.disconnect(); }  catch (_) {}; _audioNd  = null; }
+      if (_audioCtx) { try { _audioCtx.close(); }      catch (_) {}; _audioCtx = null; }
+      if (_micStm)   { _micStm.getTracks().forEach(t => t.stop()); _micStm = null; }
+      if (_voiceWs)  {
+        const w = _voiceWs; _voiceWs = null;
+        if (w.readyState < 2) w.close();
+      }
+      _micIdle();
+    }
+
+    // ── Command Center Telemetry Engine ──────────────────────────────────────
+    let _cmdPollTimer = null;
+
+    function toggleCommandCenter() {
+      const p = document.getElementById('cmd-overlay');
+      if (!p) return;
+      const isOpen = p.style.display === 'flex';
+      if (isOpen) {
+        p.style.display = 'none';
+        if (_cmdPollTimer) { clearInterval(_cmdPollTimer); _cmdPollTimer = null; }
+      } else {
+        p.style.display = 'flex';
+        fetchTelemetry();
+        _cmdPollTimer = setInterval(fetchTelemetry, 4000);
+      }
+    }
+
+    async function fetchTelemetry() {
+      try {
+        const res = await _authFetch('/api/system-overview');
+        if (!res.ok) return;
+        const d = await res.json();
+        if (!d.ok || !d.overview) return;
+        const o = d.overview;
+
+        // Security & Status
+        document.getElementById('tel-state').textContent = o.alex_state || 'ONLINE';
+        document.getElementById('tel-owner').textContent = o.owner?.address || 'Sir';
+        document.getElementById('tel-comp-ctrl').textContent = o.owner?.computer_control_allowed ? 'Available (Owner Mode)' : 'Restricted';
+        document.getElementById('tel-audio').textContent = o.audio?.status || 'Operational';
+        const cw = o.audio?.clap_wake;
+        const clapEl = document.getElementById('tel-clap');
+        if (clapEl) {
+          clapEl.textContent = cw ? (cw.enabled ? `Enabled (${cw.sensitivity})` : 'Disabled') : 'Active';
+        }
+        document.getElementById('tel-net').textContent = `Internet: ${o.network?.internet ? 'OK' : 'Offline'} | Gemini: ${o.network?.gemini_api ? 'Connected' : 'Missing Key'}`;
+
+        // Hardware
+        const hw = o.hardware || {};
+        const cpu = hw.cpu_percent || 0;
+        const ram = hw.ram_percent || 0;
+        const disk = hw.disk_percent || 0;
+
+        document.getElementById('tel-cpu-val').textContent = cpu + '%';
+        document.getElementById('tel-cpu-bar').style.width = cpu + '%';
+        document.getElementById('tel-ram-val').textContent = `${ram}% (${hw.ram_used_gb}/${hw.ram_total_gb} GB)`;
+        document.getElementById('tel-ram-bar').style.width = ram + '%';
+        document.getElementById('tel-disk-val').textContent = `${disk}% (${hw.disk_free_gb} GB Free)`;
+        document.getElementById('tel-disk-bar').style.width = disk + '%';
+        document.getElementById('tel-gpu').textContent = hw.gpu || 'CPU Mode';
+
+        // Task Center
+        document.getElementById('tel-autonomy').textContent = `Autonomy: ${o.tasks?.autonomy_level || 'NORMAL'}`;
+        const tList = document.getElementById('tel-tasks-list');
+        const tasks = o.tasks?.active || o.tasks?.recent || [];
+        if (tasks.length) {
+          tList.innerHTML = tasks.slice(0, 5).map(t => {
+            const isRun = t.status === 'RUNNING';
+            const icon = isRun ? '▶' : (t.status === 'COMPLETED' ? '✓' : '⏸');
+            return `
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:6px 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-weight:700; color:var(--text);">${icon} ${esc(t.goal || '')}</span>
+                  <span style="font-size:10px; color:${isRun ? 'var(--accent)' : 'var(--muted)'};">${esc(t.status)}</span>
+                </div>
+                <div style="font-size:10px; color:var(--muted);">${esc(t.verification || '')} (${t.elapsed_seconds || 0}s)</div>
+                <div style="display:flex; gap:6px; margin-top:6px;">
+                  ${isRun ? `<button class="btn" onclick="taskAction('pause','${t.task_id}')" style="padding:2px 6px; font-size:9px; background:var(--surface-2); color:var(--accent);">Pause</button>` : ''}
+                  ${t.status === 'PAUSED' ? `<button class="btn" onclick="taskAction('resume','${t.task_id}')" style="padding:2px 6px; font-size:9px; background:var(--surface-2); color:var(--green);">Resume</button>` : ''}
+                  ${!['COMPLETED','CANCELLED'].includes(t.status) ? `<button class="btn" onclick="taskAction('cancel','${t.task_id}')" style="padding:2px 6px; font-size:9px; background:var(--surface-2); color:var(--red);">Cancel</button>` : ''}
+                </div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          tList.innerHTML = '<div style="color:var(--muted);">No active tasks running.</div>';
+        }
+
+        // Projects
+        const projs = o.projects || {};
+        document.getElementById('tel-act-proj').textContent = projs.active_project || 'Personal';
+        const pList = document.getElementById('tel-proj-list');
+        if (projs.all && projs.all.length) {
+          const act = projs.all.find(p => p.name === projs.active_project);
+          if (act) {
+            document.getElementById('tel-proj-health').textContent = act.health_status || 'HEALTHY';
+            document.getElementById('tel-proj-health').style.color = act.health_status === 'HEALTHY' ? 'var(--green)' : 'var(--red)';
+            document.getElementById('tel-proj-git').textContent = `${act.git_branch || 'main'} (${act.git_status || 'Clean'})`;
+          }
+          pList.innerHTML = projs.all.map(p => `
+            <span style="font-size:10px; background:var(--surface); border:1px solid var(--border); padding:2px 6px; border-radius:4px; color:${p.name === projs.active_project ? 'var(--accent)' : 'var(--muted)'}; cursor:pointer;" onclick="sendCmd('${p.name} project status check karo')">
+              ${esc(p.name)}
+            </span>
+          `).join('');
+        }
+
+        // Proactive & Reminders
+        const pro = o.proactive || {};
+        document.getElementById('dnd-btn').textContent = `DND: ${pro.dnd_mode ? 'ON' : 'OFF'}`;
+        document.getElementById('dnd-btn').style.color = pro.dnd_mode ? 'var(--green)' : 'var(--red)';
+        document.getElementById('tel-quiet').textContent = pro.quiet_hours_active ? 'ACTIVE' : 'INACTIVE';
+        const rems = pro.reminders || [];
+        const remEl = document.getElementById('tel-reminders');
+        if (rems.length) {
+          remEl.innerHTML = rems.map(r => `<div style="font-size:11px;">• ${esc(r.text)} (${esc(r.due_timestamp)})</div>`).join('');
+        } else {
+          remEl.innerHTML = '<div style="color:var(--muted); font-size:11px;">No reminders scheduled for today.</div>';
+        }
+
+        // Timeline
+        const tl = o.timeline || [];
+        const tlEl = document.getElementById('tel-timeline-list');
+        if (tl.length) {
+          tlEl.innerHTML = tl.map(e => `
+            <div style="padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.03);">
+              <span style="color:var(--accent); font-weight:700;">[${esc(e.time_short || '')}]</span>
+              <span style="color:var(--text);">${esc(e.title || '')}</span>
+              <span style="color:var(--muted); font-size:10px;">— ${esc(e.verification_status || 'OK')}</span>
+            </div>
+          `).join('');
+        } else {
+          tlEl.innerHTML = '<div style="color:var(--muted);">No actions recorded.</div>';
+        }
+
+        // Update Knowledge Brain, Skills Engine, Workflow Orchestrator, DevLab & Creation Studio
+        loadBrainUI();
+        loadSkillsUI();
+        loadWorkflowsUI();
+        loadDevLabUI();
+        loadCreationUI();
+
+      } catch (err) {
+        console.warn('Telemetry error:', err);
+      }
+    }
+
+    async function taskAction(action, taskId) {
+      try {
+        await _authFetch('/api/task-control', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action, task_id: taskId })
+        });
+        toast(`Task ${action} requested`);
+        fetchTelemetry();
+      } catch (e) {
+        toast('Action failed');
+      }
+    }
+
+    async function toggleDnd() {
+      try {
+        const res = await _authFetch('/api/dnd', { method: 'POST' });
+        const d = await res.json();
+        if (d.ok) {
+          toast(d.dnd_mode ? 'DND Enabled' : 'DND Disabled');
+          fetchTelemetry();
+        }
+      } catch (e) {
+        toast('DND toggle failed');
+      }
+    }
+
+    // ── Knowledge Brain Client Engine ─────────────────────────────────────────
+    async function loadBrainUI() {
+      try {
+        const sRes = await _authFetch('/api/memory/stats');
+        if (sRes.ok) {
+          const sData = await sRes.json();
+          if (sData.ok && sData.stats) {
+            const st = sData.stats;
+            const bBadge = document.getElementById('brain-stats-badge');
+            if (bBadge) {
+              bBadge.textContent = `${st.memories || 0} Facts • ${st.projects || 0} Projects • ${st.documents || 0} Docs (${st.document_chunks || 0} Chunks)`;
+            }
+          }
+        }
+
+        const catFilter = document.getElementById('brain-cat-filter')?.value || '';
+        const url = catFilter ? `/api/memory/entries?category=${encodeURIComponent(catFilter)}` : '/api/memory/entries';
+        const eRes = await _authFetch(url);
+        if (eRes.ok) {
+          const eData = await eRes.json();
+          renderBrainMemories(eData.entries || []);
+        }
+      } catch (err) {
+        console.warn('loadBrainUI error:', err);
+      }
+    }
+
+    function renderBrainMemories(entries) {
+      const c = document.getElementById('brain-mem-container');
+      if (!c) return;
+      if (!entries.length) {
+        c.innerHTML = '<div style="color:var(--muted); padding:10px; text-align:center;">No memory records found in this category.</div>';
+        return;
+      }
+      c.innerHTML = entries.map(m => `
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:8px 12px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          <div style="flex:1;">
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:4px;">
+              <span style="font-size:9px; background:var(--adim); border:1px solid var(--border); padding:1px 6px; border-radius:3px; color:var(--accent); font-weight:700; text-transform:uppercase;">${esc(m.category || 'notes')}</span>
+              ${m.key ? `<span style="font-size:10px; color:var(--muted); font-weight:600;">${esc(m.key)}</span>` : ''}
+              <span style="font-size:9px; color:var(--muted); margin-left:auto;">${esc((m.updated_at || '').substring(0, 10))}</span>
+            </div>
+            <div style="color:var(--text); font-size:12px; line-height:1.4;">${esc(m.content || '')}</div>
+          </div>
+          <div style="display:flex; gap:4px; flex-shrink:0;">
+            <button class="btn" onclick="editBrainMemory('${m.id}', '${encodeURIComponent(m.content)}')" style="padding:2px 6px; font-size:9px; background:var(--surface-2); color:var(--accent);">EDIT</button>
+            <button class="btn" onclick="deleteBrainMemory('${m.id}')" style="padding:2px 6px; font-size:9px; background:var(--surface-2); color:var(--red);">DEL</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function searchBrain() {
+      const q = document.getElementById('brain-search-inp')?.value?.trim();
+      if (!q) {
+        loadBrainUI();
+        return;
+      }
+      try {
+        const res = await _authFetch(`/api/memory/search?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const d = await res.json();
+          const c = document.getElementById('brain-mem-container');
+          if (c) {
+            c.innerHTML = `
+              <div style="background:var(--adim); border:1px solid var(--border-hl); border-radius:8px; padding:10px; margin-bottom:8px;">
+                <div style="font-weight:700; color:var(--accent); font-size:12px; margin-bottom:4px;">RETRIEVAL SUMMARY (${esc(d.source || 'FTS5 Brain')})</div>
+                <div style="font-size:12px; color:var(--text); white-space:pre-wrap;">${esc(d.summary || '')}</div>
+              </div>
+            `;
+          }
+        }
+      } catch (e) {
+        toast('Search failed');
+      }
+    }
+
+    async function saveBrainFactPrompt() {
+      const content = prompt("Enter fact or preference to remember for Sir:");
+      if (!content || !content.trim()) return;
+      const cat = prompt("Enter category (identity, preferences, projects, notes):", "notes") || "notes";
+      try {
+        const res = await _authFetch('/api/memory/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: content.trim(), category: cat.trim() })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          toast("Fact saved to Brain");
+          loadBrainUI();
+        }
+      } catch (e) {
+        toast("Failed to save fact");
+      }
+    }
+
+    async function deleteBrainMemory(memId) {
+      if (!confirm("Are you sure you want to delete this memory?")) return;
+      try {
+        const res = await _authFetch(`/api/memory/delete/${memId}`, { method: 'DELETE' });
+        const d = await res.json();
+        if (d.ok) {
+          toast("Memory removed");
+          loadBrainUI();
+        }
+      } catch (e) {
+        toast("Delete failed");
+      }
+    }
+
+    async function editBrainMemory(memId, encOld) {
+      const oldVal = decodeURIComponent(encOld);
+      const newVal = prompt("Edit memory fact:", oldVal);
+      if (newVal === null || newVal === oldVal) return;
+      try {
+        const res = await _authFetch(`/api/memory/update/${memId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: newVal.trim() })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          toast("Memory updated");
+          loadBrainUI();
+        }
+      } catch (e) {
+        toast("Update failed");
+      }
+    }
+
+    async function clearSessionBrain() {
+      if (!confirm("Clear active session summaries?")) return;
+      try {
+        const res = await _authFetch('/api/memory/clear-session', { method: 'POST' });
+        const d = await res.json();
+        if (d.ok) {
+          toast("Session memory cleared");
+          loadBrainUI();
+        }
+      } catch (e) {
+        toast("Clear session failed");
+      }
+    }
+
+    async function backupBrain() {
+      try {
+        const res = await _authFetch('/api/memory/backup', { method: 'POST' });
+        const d = await res.json();
+        if (d.ok) {
+          toast("SQLite Brain backup created!");
+        }
+      } catch (e) {
+        toast("Backup failed");
+      }
+    }
+
+    async function exportBrain() {
+      try {
+        const res = await _authFetch('/api/memory/export?format=json');
+        const d = await res.json();
+        if (d.ok) {
+          const blob = new Blob([d.data], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `alex_brain_export_${Date.now()}.json`;
+          a.click();
+          toast("Brain export downloaded");
+        }
+      } catch (e) {
+        toast("Export failed");
+      }
+    }
+
+    async function indexActiveWorkspace() {
+      toast("Indexing workspace documents...");
+      try {
+        const res = await _authFetch('/api/memory/index-path', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: '.' })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          const r = d.result || {};
+          toast(`Indexed: ${r.indexed_files || 0} files, ${r.unchanged_files || 0} unchanged`);
+          loadBrainUI();
+        }
+      } catch (e) {
+        toast("Workspace indexing failed");
+      }
+    }
+
+    // ── Skills Engine & Plugins Client Engine ────────────────────────────────
+    let _allSkillsCache = [];
+
+    async function loadSkillsUI() {
+      try {
+        const cat = document.getElementById('skills-cat-filter')?.value || '';
+        const stat = document.getElementById('skills-status-filter')?.value || '';
+        const search = document.getElementById('skills-search-inp')?.value?.trim() || '';
+
+        let url = '/api/skills/list?';
+        if (cat) url += `category=${encodeURIComponent(cat)}&`;
+        if (stat) url += `status=${encodeURIComponent(stat)}&`;
+        if (search) url += `search=${encodeURIComponent(search)}&`;
+
+        const res = await _authFetch(url);
+        if (res.ok) {
+          const d = await res.json();
+          const skills = d.skills || [];
+          _allSkillsCache = skills;
+
+          const badge = document.getElementById('skills-stats-badge');
+          if (badge) {
+            const enabledCount = skills.filter(s => s.status === 'ENABLED').length;
+            badge.textContent = `${skills.length} Registered • ${enabledCount} Enabled`;
+          }
+
+          renderSkills(skills);
+        }
+      } catch (err) {
+        console.warn('loadSkillsUI error:', err);
+      }
+    }
+
+    function renderSkills(skills) {
+      const c = document.getElementById('skills-list-container');
+      if (!c) return;
+      if (!skills.length) {
+        c.innerHTML = '<div style="color:var(--muted); padding:10px; text-align:center;">No matching skills found.</div>';
+        return;
+      }
+
+      const getCatColor = (cat) => {
+        if (cat.includes('Computer')) return '#38bdf8';
+        if (cat.includes('Browser')) return '#818cf8';
+        if (cat.includes('Document')) return '#34d399';
+        if (cat.includes('Development')) return '#fbbf24';
+        if (cat.includes('Productivity')) return '#f472b6';
+        return '#a78bfa';
+      };
+
+      const getStatusBadge = (st) => {
+        if (st === 'ENABLED') return '<span style="color:var(--green); background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); padding:1px 6px; border-radius:3px; font-size:9px; font-weight:700;">ENABLED</span>';
+        if (st === 'DISABLED') return '<span style="color:var(--muted); background:var(--surface); border:1px solid var(--border); padding:1px 6px; border-radius:3px; font-size:9px;">DISABLED</span>';
+        return `<span style="color:var(--red); background:rgba(244,63,94,0.1); border:1px solid rgba(244,63,94,0.3); padding:1px 6px; border-radius:3px; font-size:9px;">${esc(st)}</span>`;
+      };
+
+      c.innerHTML = skills.map(s => `
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
+          <div style="flex:1;">
+            <div style="display:flex; gap:6px; align-items:center; margin-bottom:4px; flex-wrap:wrap;">
+              <span style="font-weight:700; color:var(--text); font-size:12px;">${esc(s.name)}</span>
+              <span style="font-size:9px; color:var(--muted); font-family:monospace;">${esc(s.skill_id)} v${esc(s.version)}</span>
+              <span style="font-size:9px; color:${getCatColor(s.category)}; background:rgba(255,255,255,0.03); border:1px solid var(--border); padding:1px 6px; border-radius:3px;">${esc(s.category)}</span>
+              <span style="font-size:9px; color:var(--muted); border:1px solid var(--border); padding:1px 4px; border-radius:3px;">L${s.required_permissions}</span>
+              ${getStatusBadge(s.status)}
+            </div>
+            <div style="color:var(--muted); font-size:11px; margin-bottom:6px;">${esc(s.description)}</div>
+            <div style="display:flex; gap:6px; align-items:center; font-size:10px; color:var(--muted); flex-wrap:wrap;">
+              <span>Executions: <b style="color:var(--text);">${s.executions || 0}</b></span>
+              ${s.failures ? `<span>Failures: <b style="color:var(--red);">${s.failures}</b></span>` : ''}
+              ${s.dependencies && s.dependencies.length ? `<span>Deps: <code style="color:var(--accent);">${esc(s.dependencies.join(', '))}</code></span>` : ''}
+            </div>
+          </div>
+          <div style="display:flex; gap:6px; flex-shrink:0; align-items:center; flex-wrap:wrap;">
+            <button class="btn" onclick="testSkillHealth('${s.skill_id}')" style="padding:3px 8px; font-size:9px; background:var(--surface-2); color:var(--accent);">HEALTH</button>
+            <button class="btn" onclick="executeSkillPrompt('${s.skill_id}')" style="padding:3px 8px; font-size:9px; background:var(--surface-2); color:var(--text);">RUN</button>
+            <button class="btn" onclick="toggleSkillState('${s.skill_id}', ${s.status !== 'ENABLED'})" style="padding:3px 8px; font-size:9px; background:var(--surface-2); color:${s.status === 'ENABLED' ? 'var(--red)' : 'var(--green)'};">
+              ${s.status === 'ENABLED' ? 'DISABLE' : 'ENABLE'}
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function toggleSkillState(skillId, enable) {
+      const action = enable ? 'enable' : 'disable';
+      try {
+        const res = await _authFetch(`/api/skills/${skillId}/${action}`, { method: 'POST' });
+        const d = await res.json();
+        toast(d.message || `Skill ${action}d`);
+        loadSkillsUI();
+      } catch (e) {
+        toast(`Failed to ${action} skill`);
+      }
+    }
+
+    async function testSkillHealth(skillId) {
+      toast(`Inspecting ${skillId} health...`);
+      try {
+        const res = await _authFetch(`/api/skills/${skillId}/health-check`);
+        const d = await res.json();
+        if (d.ok) {
+          toast(`✓ ${d.message}`);
+        } else {
+          alert(`Health Check Failed for ${skillId}:\n${d.message}`);
+        }
+        loadSkillsUI();
+      } catch (e) {
+        toast("Health check request failed");
+      }
+    }
+
+    async function executeSkillPrompt(skillId) {
+      const act = prompt(`Action name to execute for ${skillId} (or leave empty for default):`);
+      if (act === null) return;
+      const paramStr = prompt("Parameters JSON (e.g. {\"text\": \"Hello\"}):", "{}");
+      if (paramStr === null) return;
+      let params = {};
+      try {
+        params = JSON.parse(paramStr || "{}");
+      } catch (e) {
+        alert("Invalid JSON parameters");
+        return;
+      }
+
+      toast(`Executing ${skillId}...`);
+      try {
+        const res = await _authFetch('/api/skills/execute', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skill_id: skillId, action: act || undefined, parameters: params })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          alert(`Skill Execution Verified:\nOutput: ${JSON.stringify(d.result.output, null, 2)}\nDuration: ${d.result.duration_ms}ms`);
+        } else {
+          alert(`Execution Error:\n${d.result?.error || 'Execution failed'}`);
+        }
+        loadSkillsUI();
+      } catch (e) {
+        toast("Skill execution call failed");
+      }
+    }
+
+    async function installPluginPrompt() {
+      const pluginName = prompt("Plugin name (snake_case, e.g. text_summarizer):");
+      if (!pluginName) return;
+      const code = prompt("Paste full Python plugin code:");
+      if (!code) return;
+
+      toast("Auditing and installing plugin...");
+      try {
+        const res = await _authFetch('/api/skills/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ plugin_name: pluginName, code: code })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          toast("✓ Plugin installed & verified!");
+          loadSkillsUI();
+        } else {
+          alert(`Plugin Installation Rejected:\n${d.message}`);
+        }
+      } catch (e) {
+        toast("Plugin install request failed");
+      }
+    }
+
+    async function rollbackPlugin(skillId) {
+      if (!confirm(`Are you sure you want to rollback ${skillId} to previous snapshot?`)) return;
+      try {
+        const res = await _authFetch(`/api/skills/${skillId}/rollback`, { method: 'POST' });
+        const d = await res.json();
+        toast(d.message);
+        loadSkillsUI();
+      } catch (e) {
+        toast("Rollback request failed");
+      }
+    }
+
+    // ── Multi-Step Workflow Orchestrator Client Engine ────────────────────────
+    let _allWorkflowsCache = [];
+
+    async function loadWorkflowsUI() {
+      try {
+        const stat = document.getElementById('wf-status-filter')?.value || '';
+        const search = document.getElementById('wf-search-inp')?.value?.trim() || '';
+
+        let url = '/api/workflows/list?';
+        if (stat) url += `status=${encodeURIComponent(stat)}&`;
+
+        const res = await _authFetch(url);
+        if (res.ok) {
+          const d = await res.json();
+          let workflows = d.workflows || [];
+          if (search) {
+            const q = search.toLowerCase();
+            workflows = workflows.filter(w => (w.user_request || '').toLowerCase().includes(q) || (w.workflow_id || '').toLowerCase().includes(q));
+          }
+          _allWorkflowsCache = workflows;
+
+          const badge = document.getElementById('wf-stats-badge');
+          if (badge) {
+            const activeCount = workflows.filter(w => !w.is_terminal).length;
+            const completedCount = workflows.filter(w => w.current_status === 'COMPLETED').length;
+            badge.textContent = `${workflows.length} Total • ${activeCount} Active • ${completedCount} Completed`;
+          }
+
+          renderWorkflows(workflows);
+        }
+      } catch (err) {
+        console.warn('loadWorkflowsUI error:', err);
+      }
+    }
+
+    function renderWorkflows(workflows) {
+      const c = document.getElementById('workflows-list-container');
+      if (!c) return;
+      if (!workflows.length) {
+        c.innerHTML = '<div style="color:var(--muted); padding:10px; text-align:center;">No matching workflows found.</div>';
+        return;
+      }
+
+      const getStatusColor = (st) => {
+        if (st === 'RUNNING') return 'var(--accent)';
+        if (st === 'COMPLETED') return 'var(--green)';
+        if (st === 'PAUSED') return '#fbbf24';
+        if (st === 'AWAITING_APPROVAL') return '#c084fc';
+        if (st === 'FAILED') return 'var(--red)';
+        return 'var(--muted)';
+      };
+
+      c.innerHTML = workflows.map(w => `
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <span style="font-weight:800; color:var(--text); font-family:monospace; font-size:12px;">${esc(w.workflow_id)}</span>
+              <span style="font-size:9px; font-weight:700; color:${getStatusColor(w.current_status)}; background:rgba(255,255,255,0.03); border:1px solid var(--border); padding:2px 6px; border-radius:4px;">${esc(w.current_status)}</span>
+              <span style="font-size:9px; color:var(--muted);">${esc(w.creation_time || '')}</span>
+            </div>
+            <div style="display:flex; gap:4px; align-items:center;">
+              ${w.current_status === 'RUNNING' ? `<button class="btn" onclick="pauseWorkflow('${w.workflow_id}')" style="padding:2px 8px; font-size:9px; background:var(--surface-2); color:#fbbf24;">PAUSE</button>` : ''}
+              ${w.current_status === 'PAUSED' ? `<button class="btn" onclick="resumeWorkflow('${w.workflow_id}')" style="padding:2px 8px; font-size:9px; background:var(--surface-2); color:var(--green);">RESUME</button>` : ''}
+              ${!w.is_terminal ? `<button class="btn" onclick="cancelWorkflow('${w.workflow_id}')" style="padding:2px 8px; font-size:9px; background:var(--surface-2); color:var(--red);">CANCEL</button>` : ''}
+            </div>
+          </div>
+
+          <!-- Goal & Outcome -->
+          <div style="font-size:12px; font-weight:700; color:var(--text); margin-bottom:2px;">"${esc(w.user_request)}"</div>
+          <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">Outcome: ${esc(w.desired_outcome || 'Executing tasks')}</div>
+
+          <!-- Progress Bar -->
+          <div style="background:var(--surface-2); border-radius:4px; height:6px; overflow:hidden; margin-bottom:10px;">
+            <div style="background:${getStatusColor(w.current_status)}; width:${w.progress_pct || 0}%; height:100%; transition:width 0.3s;"></div>
+          </div>
+
+          <!-- Tasks DAG Steps -->
+          <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:8px;">
+            ${(w.tasks || []).map((t, idx) => `
+              <div style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.04); border-radius:6px; padding:6px 10px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <div style="display:flex; gap:6px; align-items:center; flex:1;">
+                  <span style="font-size:9px; font-weight:700; color:${t.status === 'COMPLETED' ? 'var(--green)' : (t.status === 'FAILED' ? 'var(--red)' : 'var(--muted)')};">
+                    ${t.status === 'COMPLETED' ? '✓' : (t.status === 'RUNNING' ? '⏳' : (t.status === 'FAILED' ? '✗' : '○'))}
+                  </span>
+                  <span style="font-size:11px; color:var(--text);">${esc(t.objective)}</span>
+                  <span style="font-size:9px; color:var(--accent); font-family:monospace;">[${esc(t.required_skill)}]</span>
+                  ${t.dependencies && t.dependencies.length ? `<span style="font-size:8px; color:var(--muted);">deps:${esc(t.dependencies.join(','))}</span>` : ''}
+                </div>
+                <div style="display:flex; gap:4px; align-items:center;">
+                  <span style="font-size:9px; color:var(--muted);">${esc(t.status)}</span>
+                  ${t.status === 'FAILED' ? `<button class="btn" onclick="retryWorkflowTask('${w.workflow_id}', '${t.task_id}')" style="padding:1px 6px; font-size:8px; background:var(--surface-2); color:var(--accent);">RETRY</button>` : ''}
+                </div>
+              </div>
+            `).join('')}
+          </div>
+
+          <!-- Output Files -->
+          ${w.output_file_paths && w.output_file_paths.length ? `
+            <div style="font-size:10px; color:var(--green); margin-top:4px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+              <b>Artifacts:</b>
+              ${w.output_file_paths.map(fp => `<span style="background:rgba(34,197,94,0.1); border:1px solid rgba(34,197,94,0.3); padding:1px 6px; border-radius:3px; font-family:monospace;">${esc(fp.split(/[\\\\/]/).pop())}</span>`).join('')}
+            </div>
+          ` : ''}
+
+          <!-- Pending Approval Alert -->
+          ${w.current_status === 'AWAITING_APPROVAL' ? `
+            <div style="background:rgba(192,132,252,0.1); border:1px solid rgba(192,132,252,0.3); border-radius:6px; padding:8px 10px; margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="color:#c084fc; font-weight:700; font-size:11px;">⚠️ Owner Authorization Required for Sensitive Task</span>
+              <div style="display:flex; gap:6px;">
+                <button class="btn" onclick="promptDecideApproval('${w.workflow_id}', true)" style="background:var(--green); color:#000; font-weight:700; padding:2px 8px; font-size:9px;">APPROVE</button>
+                <button class="btn" onclick="promptDecideApproval('${w.workflow_id}', false)" style="background:var(--red); color:#fff; padding:2px 8px; font-size:9px;">REJECT</button>
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    async function submitWorkflowPrompt() {
+      const req = prompt("Describe the multi-step goal for ALEX to orchestrate:");
+      if (!req || !req.trim()) return;
+
+      toast("Deconstructing goal into DAG tasks...");
+      try {
+        const res = await _authFetch('/api/workflows/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request: req.trim() })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          toast(`Workflow ${d.workflow?.workflow_id} created & started!`);
+          loadWorkflowsUI();
+        } else {
+          alert(`Workflow Submission Failed:\n${d.error}`);
+        }
+      } catch (e) {
+        toast("Workflow submit request failed");
+      }
+    }
+
+    async function pauseWorkflow(wfId) {
+      try {
+        const res = await _authFetch(`/api/workflows/${wfId}/pause`, { method: 'POST' });
+        const d = await res.json();
+        toast(d.message);
+        loadWorkflowsUI();
+      } catch (e) {
+        toast("Pause request failed");
+      }
+    }
+
+    async function resumeWorkflow(wfId) {
+      try {
+        const res = await _authFetch(`/api/workflows/${wfId}/resume`, { method: 'POST' });
+        const d = await res.json();
+        toast(d.message);
+        loadWorkflowsUI();
+      } catch (e) {
+        toast("Resume request failed");
+      }
+    }
+
+    async function cancelWorkflow(wfId) {
+      if (!confirm(`Cancel workflow ${wfId}?`)) return;
+      try {
+        const res = await _authFetch(`/api/workflows/${wfId}/cancel`, { method: 'POST' });
+        const d = await res.json();
+        toast(d.message);
+        loadWorkflowsUI();
+      } catch (e) {
+        toast("Cancel request failed");
+      }
+    }
+
+    async function retryWorkflowTask(wfId, taskId) {
+      try {
+        const res = await _authFetch(`/api/workflows/${wfId}/retry-task`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ task_id: taskId })
+        });
+        const d = await res.json();
+        toast(d.message);
+        loadWorkflowsUI();
+      } catch (e) {
+        toast("Retry task request failed");
+      }
+    }
+
+    async function promptDecideApproval(wfId, approve) {
+      const note = prompt(approve ? "Optional approval note for Aditya Sir:" : "Reason for rejection:");
+      if (note === null) return;
+      try {
+        const pRes = await _authFetch('/api/workflows/approvals/pending');
+        const pData = await pRes.json();
+        const apprs = (pData.approvals || []).filter(a => a.workflow_id === wfId);
+        if (!apprs.length) {
+          toast("No pending approval found for this workflow");
+          return;
+        }
+        const targetId = apprs[0].approval_id;
+        const res = await _authFetch(`/api/workflows/approvals/${targetId}/decide`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision: approve ? 'approve' : 'reject', note: note || '' })
+        });
+        const d = await res.json();
+        toast(d.message);
+        loadWorkflowsUI();
+      } catch (e) {
+        toast("Approval decision failed");
+      }
+    }
+
+    // ── Software Engineering & Self-Debugging Lab Client Engine ─────────────────
+    let _allFindingsCache = [];
+
+    async function loadDevLabUI() {
+      try {
+        const stat = document.getElementById('devlab-status-filter')?.value || '';
+        const sev = document.getElementById('devlab-sev-filter')?.value || '';
+        const search = document.getElementById('devlab-search-inp')?.value?.trim() || '';
+
+        let url = '/api/devlab/findings?';
+        if (stat) url += `status=${encodeURIComponent(stat)}&`;
+
+        const res = await _authFetch(url);
+        if (res.ok) {
+          const d = await res.json();
+          let findings = d.findings || [];
+          if (sev) {
+            findings = findings.filter(f => f.severity === sev);
+          }
+          if (search) {
+            const q = search.toLowerCase();
+            findings = findings.filter(f => 
+              (f.title || '').toLowerCase().includes(q) ||
+              (f.file_path || '').toLowerCase().includes(q) ||
+              (f.id || '').toLowerCase().includes(q)
+            );
+          }
+          _allFindingsCache = findings;
+
+          const badge = document.getElementById('devlab-stats-badge');
+          if (badge) {
+            const confirmedCount = findings.filter(f => f.is_confirmed).length;
+            const criticalCount = findings.filter(f => f.severity === 'CRITICAL').length;
+            badge.textContent = `${findings.length} Defects • ${confirmedCount} Confirmed • ${criticalCount} Critical`;
+          }
+
+          renderDevLab(findings);
+        }
+      } catch (err) {
+        console.warn('loadDevLabUI error:', err);
+      }
+    }
+
+    function renderDevLab(findings) {
+      const c = document.getElementById('devlab-findings-container');
+      if (!c) return;
+      if (!findings.length) {
+        c.innerHTML = '<div style="color:var(--muted); padding:10px; text-align:center;">No matching defect findings.</div>';
+        return;
+      }
+
+      const getSevColor = (sev) => {
+        if (sev === 'CRITICAL') return 'var(--red)';
+        if (sev === 'HIGH') return '#f97316';
+        if (sev === 'MEDIUM') return '#eab308';
+        return 'var(--green)';
+      };
+
+      c.innerHTML = findings.map(f => `
+        <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+            <div style="display:flex; flex-direction:column; gap:2px;">
+              <div style="display:flex; gap:6px; align-items:center;">
+                <span style="font-size:9px; font-weight:800; background:rgba(0,0,0,0.3); border:1px solid ${getSevColor(f.severity)}; color:${getSevColor(f.severity)}; padding:1px 6px; border-radius:4px;">${esc(f.severity)}</span>
+                <span style="font-size:12px; font-weight:700; color:var(--text);">${esc(f.title)}</span>
+                <span style="font-size:10px; font-family:monospace; color:var(--accent);">[${esc(f.id)}]</span>
+              </div>
+              <div style="font-size:10px; color:var(--muted); font-family:monospace;">
+                📍 ${esc(f.file_path)}${f.line_number ? ':' + f.line_number : ''} • Category: ${esc(f.category)} • ${f.is_confirmed ? '🔴 Confirmed' : '⚪ Unconfirmed'}
+              </div>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <span style="font-size:9px; background:var(--adim); border:1px solid var(--border); padding:2px 8px; border-radius:4px; color:${f.status === 'VERIFIED' ? 'var(--green)' : 'var(--text)'}; font-weight:700;">${esc(f.status)}</span>
+              <button class="btn" onclick="reproduceDevLab('${f.id}')" style="background:var(--surface-2); color:var(--accent); padding:2px 8px; font-size:9px;">REPRODUCE</button>
+              <button class="btn" onclick="cycleDevLab('${f.id}')" style="background:var(--green); color:#000d14; font-weight:700; padding:2px 8px; font-size:9px;">AUTO-FIX</button>
+            </div>
+          </div>
+
+          <!-- Description & Evidence -->
+          <div style="font-size:11px; color:var(--muted); background:rgba(255,255,255,0.02); padding:6px 8px; border-radius:4px;">
+            <div><b>Description:</b> ${esc(f.description)}</div>
+            ${f.evidence ? `<div style="margin-top:4px; font-family:monospace; font-size:10px; color:var(--accent); white-space:pre-wrap;">Evidence: ${esc(f.evidence.slice(0, 300))}</div>` : ''}
+          </div>
+
+          <!-- Diff view if available -->
+          ${f.diff ? `
+            <div style="font-size:10px; font-family:monospace; background:rgba(0,0,0,0.4); border:1px solid var(--border); padding:6px 8px; border-radius:4px; color:#4ade80; white-space:pre-wrap; max-height:120px; overflow-y:auto;">
+              ${esc(f.diff)}
+            </div>
+          ` : ''}
+        </div>
+      `).join('');
+    }
+
+    async function scanDevLab() {
+      toast("Scanning codebase for defects, architecture, & dead code...");
+      try {
+        const res = await _authFetch('/api/devlab/scan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const d = await res.json();
+        if (d.ok) {
+          toast(`Scan completed! Discovered ${d.findings_count} defect finding(s).`);
+          loadDevLabUI();
+        } else {
+          alert(`Scan failed:\n${d.error}`);
+        }
+      } catch (e) {
+        toast("Scan request failed");
+      }
+    }
+
+    async function reproduceDevLab(findingId) {
+      toast(`Executing minimal reproduction probe for ${findingId}...`);
+      try {
+        const res = await _authFetch('/api/devlab/reproduce', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ finding_id: findingId })
+        });
+        const d = await res.json();
+        if (d.ok && d.result) {
+          const r = d.result;
+          alert(`Reproduction Result for ${findingId}:\nReproduced: ${r.reproduced}\nExit Code: ${r.exit_code}\nOutput:\n${r.error_output}`);
+          loadDevLabUI();
+        }
+      } catch (e) {
+        toast("Reproduction probe failed");
+      }
+    }
+
+    async function cycleDevLab(findingId) {
+      toast(`Initiating 10-step autonomous debugging cycle for ${findingId}...`);
+      try {
+        const res = await _authFetch('/api/devlab/cycle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ finding_id: findingId })
+        });
+        const d = await res.json();
+        if (d.ok && d.result) {
+          const r = d.result;
+          if (r.success) {
+            toast(`Success! ${findingId} verified & fixed.`);
+          } else {
+            alert(`Debugging Cycle Notice:\nStep: ${r.step}\nMessage: ${r.message}`);
+          }
+          loadDevLabUI();
+        }
+      } catch (e) {
+        toast("Debugging cycle failed");
+      }
+    }
+
+    async function runEnvDoctor() {
+      toast("Auditing environment and dependency tree...");
+      try {
+        const res = await _authFetch('/api/devlab/env-doctor');
+        const d = await res.json();
+        if (d.ok && d.report) {
+          const r = d.report;
+          const msg = `--- ENVIRONMENT DOCTOR REPORT ---\n` +
+            `Python: ${r.python_version} (Virtualenv: ${r.is_virtualenv ? 'YES' : 'NO'})\n` +
+            `Installed Packages: ${r.installed_packages_count}\n` +
+            `Missing Packages: ${r.missing_packages.length ? r.missing_packages.join(', ') : 'None'}\n` +
+            `System Tools: Git=${r.system_tools.git}, VSCode=${r.system_tools.code}\n` +
+            `Recommendations:\n${r.recommendations.join('\n')}`;
+          alert(msg);
+        }
+      } catch (e) {
+        toast("Environment Doctor failed");
+      }
+    }
+
+    async function runSelfDiagnostics() {
+      toast("Executing exhaustive ALEX self-diagnostics audit...");
+      try {
+        const res = await _authFetch('/api/devlab/self-diag');
+        const d = await res.json();
+        if (d.ok && d.report) {
+          const r = d.report;
+          const checksSummary = r.checks.map(c => `[${c.status}] ${c.component}: ${c.message}`).join('\n');
+          const msg = `=== ALEX SELF-DIAGNOSTICS: ${r.overall_status} ===\n` +
+            `Passed: ${r.checks_passed} | Warned: ${r.checks_warned} | Failed: ${r.checks_failed}\n\n` +
+            checksSummary;
+          alert(msg);
+        }
+      } catch (e) {
+        toast("Self-diagnostics failed");
+      }
+    }
+
+    // ── Multimodal Creation Studio Client Engine ─────────────────────────────
+    let _allCreationTasksCache = [];
+
+    async function loadCreationUI() {
+      try {
+        const res = await _authFetch('/api/creation/tasks');
+        if (res.ok) {
+          const d = await res.json();
+          const tasks = d.tasks || [];
+          _allCreationTasksCache = tasks;
+
+          const badge = document.getElementById('creation-stats-badge');
+          if (badge) {
+            const completedCount = tasks.filter(t => t.status === 'COMPLETED').length;
+            badge.textContent = `${tasks.length} Deliverables • ${completedCount} Verified`;
+          }
+
+          renderCreationTasks(tasks);
+        }
+      } catch (err) {
+        console.warn('loadCreationUI error:', err);
+      }
+    }
+
+    function renderCreationTasks(tasks) {
+      const c = document.getElementById('creation-tasks-container');
+      if (!c) return;
+      if (!tasks.length) {
+        c.innerHTML = '<div style="color:var(--muted); padding:10px; text-align:center;">No deliverables generated yet. Click a chip above to start.</div>';
+        return;
+      }
+
+      c.innerHTML = tasks.slice().reverse().map(t => {
+        const outName = t.output_path ? t.output_path.split(/[\\/]/).pop() : 'In Progress...';
+        const isOk = t.status === 'COMPLETED';
+        const icon = _fileIcon(outName);
+
+        return `
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:12px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:8px;">
+              <div style="display:flex; gap:10px; align-items:center;">
+                <span style="font-size:20px;">${icon}</span>
+                <div>
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    <span style="font-size:12px; font-weight:700; color:var(--text);">${esc(outName)}</span>
+                    <span style="font-size:9px; background:var(--adim); border:1px solid var(--border); padding:1px 6px; border-radius:4px; color:var(--accent);">${esc(t.target_format.toUpperCase())}</span>
+                  </div>
+                  <div style="font-size:10px; color:var(--muted); font-family:monospace;">
+                    Task ID: ${esc(t.task_id)} • Elapsed: ${t.elapsed_seconds}s
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <span style="font-size:9px; font-weight:700; color:${isOk ? 'var(--green)' : 'var(--red)'}; background:rgba(0,0,0,0.2); border:1px solid ${isOk ? 'var(--green)' : 'var(--red)'}; padding:2px 8px; border-radius:4px;">${esc(t.status)}</span>
+                ${t.output_path ? `<button class="btn" onclick="openDeliverable('${encodeURIComponent(t.output_path)}')" style="background:var(--surface-2); color:var(--accent); font-size:9px; padding:2px 8px;">OPEN FILE</button>` : ''}
+              </div>
+            </div>
+
+            <!-- Prompt & Validation -->
+            <div style="font-size:11px; color:var(--muted); background:rgba(255,255,255,0.02); padding:6px 8px; border-radius:4px;">
+              <div><b>Prompt:</b> ${esc(t.user_prompt)}</div>
+              ${t.validation ? `
+                <div style="margin-top:4px; font-family:monospace; font-size:10px; color:${isOk ? 'var(--green)' : 'var(--red)'};">
+                  ${isOk ? '✓ ' + esc(t.validation.integrity_notes || 'Verified') : '✗ ' + esc(t.validation.error_message || 'Error')} (${t.validation.file_size_bytes} bytes)
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function submitCreationPrompt() {
+      const p = prompt("Describe the multimodal deliverable to create for Aditya Sir (e.g. 'Project architecture slide deck' or 'Financial budget table'):");
+      if (!p || !p.trim()) return;
+
+      toast("Initiating Multimodal Creation Studio pipeline...");
+      try {
+        const res = await _authFetch('/api/creation/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: p.trim() })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          toast(`Asset created & verified!`);
+        } else {
+          toast(`Creation notice: ${d.task?.error_message || 'Generated'}`);
+        }
+        loadCreationUI();
+      } catch (e) {
+        toast("Creation request failed");
+      }
+    }
+
+    async function quickCreate(fmt, promptText) {
+      toast(`Generating ${fmt.toUpperCase()} deliverable...`);
+      try {
+        const res = await _authFetch('/api/creation/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: promptText, target_format: fmt })
+        });
+        const d = await res.json();
+        if (d.ok) {
+          toast(`${fmt.toUpperCase()} created successfully!`);
+        } else {
+          toast(`Notice: ${d.task?.error_message || 'Processed'}`);
+        }
+        loadCreationUI();
+      } catch (e) {
+        toast("Quick create failed");
+      }
+    }
+
+    async function checkToolCapabilities() {
+      toast("Checking creation tools status...");
+      try {
+        const res = await _authFetch('/api/creation/status');
+        const d = await res.json();
+        if (d.ok && d.capabilities) {
+          const c = d.capabilities;
+          const msg = `=== MULTIMODAL CREATION TOOLS STATUS ===\n` +
+            `• Blender 3D: ${c.blender_available ? 'Available (' + c.blender_path + ')' : 'Not detected (Native Procedural OBJ/STL active)'}\n` +
+            `• FFmpeg Video: ${c.ffmpeg_available ? 'Available (' + c.ffmpeg_path + ')' : 'Not detected in PATH'}\n` +
+            `• Python-Docx (Word): ${c.python_docx_available ? 'Ready' : 'Missing'}\n` +
+            `• Python-PPTX (PowerPoint): ${c.python_pptx_available ? 'Ready' : 'Missing'}\n` +
+            `• Openpyxl (Excel): ${c.openpyxl_available ? 'Ready' : 'Missing'}\n` +
+            `• Pillow (Image Studio): ${c.pillow_available ? 'Ready' : 'Missing'}\n` +
+            `• PyPDF (PDF Intelligence): ${c.pypdf_available ? 'Ready' : 'Missing'}\n` +
+            `• Supported Output Formats: ${c.supported_formats.join(', ')}`;
+          alert(msg);
+        }
+      } catch (e) {
+        toast("Failed to fetch tool status");
+      }
+    }
+
+    function openDeliverable(encPath) {
+      const p = decodeURIComponent(encPath);
+      alert(`Deliverable Location:\n${p}\n\nFile is saved in the workstation artifacts directory.`);
+    }
+  </script>
+</body>
+</html>

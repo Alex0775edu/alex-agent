@@ -1,0 +1,68 @@
+# ── MARK LV — what never belongs in the repository ──────────────────────────
+# Everything listed here is created by the app on first run. A fresh clone with
+# none of it present boots straight to the setup screen, which is the intended
+# first experience — so nothing here needs to be committed, and some of it must
+# never be.
+
+# ── Secrets. Committing any of these publishes them. ──────────────────────────
+# API keys and plugin credentials
+config/api_keys.json
+# Dashboard TLS private keys and certificates
+config/certs/
+# Linked WhatsApp sessions
+config/whatsapp_web/
+# Google OAuth tokens and client secrets
+**/token*.json
+**/client_secret*.json
+# Provider credentials
+*credentials*.json
+
+# User-specific state and caches
+config/failure_memory.json
+config/last_session_state.json
+config/news_cache.json
+config/owner_voice_profile.json
+config/weather_cache.json
+.env
+.env.*
+
+# ── Personal data and generated state ─────────────────────────────────────────
+memory/*.json
+memory/checkpoints/
+memory/*.db
+memory/artifacts/
+memory/email_drafts/
+memory/plugin_backups/
+
+# ── Browser test profile and runtime cache ────────────────────────────────────
+.edge_embed_test/
+
+# ── Python build noise ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Editors and operating systems ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Runtime output ────────────────────────────────────────────────────────────
+*.log
+logs/
+downloads/
+screenshots/

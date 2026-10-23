@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ALEX — 3D Digital Human Avatar</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 40%, #061126 0%, #030712 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      user-select: none;
+    }
+    #canvas-container {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      display: block;
+    }
+    /* Ambient Holographic Overlays */
+    .hud-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      display: flex; flex-direction: column;
+      justify-content: space-between;
+      padding: 14px 16px;
+    }
+    .hud-top {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 5px 12px;
+      background: rgba(3, 10, 24, 0.75);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      border-radius: 20px;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #00e5ff;
+      box-shadow: 0 0 10px #00e5ff;
+      transition: all 0.3s ease;
+    }
+    .status-text {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 1.2px; text-transform: uppercase;
+      color: #e0f2fe;
+      font-family: "SF Pro Text", "Segoe UI", monospace;
+    }
+    /* State-specific glowing styles */
+    .state-idle .status-dot { background: #00e5ff; box-shadow: 0 0 8px #00e5ff; }
+    .state-listening .status-dot { background: #10b981; box-shadow: 0 0 12px #10b981; animation: pulse 1.2s infinite; }
+    .state-thinking .status-dot { background: #8b5cf6; box-shadow: 0 0 12px #8b5cf6; animation: spin 2s infinite linear; }
+    .state-speaking .status-dot { background: #38bdf8; box-shadow: 0 0 12px #38bdf8; }
+    .state-executing .status-dot { background: #f59e0b; box-shadow: 0 0 12px #f59e0b; animation: pulse 0.8s infinite; }
+    .state-success .status-dot { background: #10b981; box-shadow: 0 0 14px #10b981; }
+    .state-error .status-dot { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+    .state-sleeping .status-dot { background: #64748b; box-shadow: none; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .voice-waves {
+      display: flex; align-items: center; gap: 3px; height: 16px;
+    }
+    .wave-bar {
+      width: 3px; height: 4px;
+      background: #00e5ff;
+      border-radius: 2px;
+      transition: height 0.08s ease;
+    }
+
+    .hud-bottom {
+      display: flex; justify-content: space-between; align-items: flex-end;
+    }
+    .owner-tag {
+      font-size: 10px; font-weight: 600;
+      color: rgba(148, 163, 184, 0.7);
+      letter-spacing: 0.8px;
+    }
+    .hud-controls {
+      display: flex; gap: 6px;
+      pointer-events: auto;
+    }
+    .hud-btn {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(0, 229, 255, 0.2);
+      color: #94a3b8;
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .hud-btn:hover {
+      background: rgba(0, 229, 255, 0.15);
+      color: #00e5ff;
+      border-color: rgba(0, 229, 255, 0.4);
+    }
+    /* Fallback overlay */
+    #fallback-container {
+      display: none;
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      flex-direction: column; align-items: center; justify-content: center;
+      background: #030712; color: #94a3b8; text-align: center; padding: 20px;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./libs/three.module.js",
+        "three/addons/": "./libs/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="canvas-container"></div>
+
+  <div class="hud-overlay">
+    <div class="hud-top">
+      <div id="status-badge" class="status-badge state-idle">
+        <div id="status-dot" class="status-dot"></div>
+        <span id="status-text" class="status-text">ONLINE · IDLE</span>
+      </div>
+      <div id="voice-waves" class="voice-waves">
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+        <div class="wave-bar"></div>
+      </div>
+    </div>
+
+    <div class="hud-bottom">
+      <div class="owner-tag">ALEX 3D AVATAR · ADITYA RAJAK EDITION</div>
+      <div class="hud-controls">
+        <button id="btn-reset-cam" class="hud-btn" title="Reset Camera View">⟲ CAMERA</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="fallback-container">
+    <img src="aadi.png" style="width: 140px; height: 140px; border-radius: 50%; border: 2px solid #00e5ff; margin-bottom: 12px; box-shadow: 0 0 20px rgba(0,229,255,0.3);" />
+    <p style="font-weight: 600; color: #e2e8f0; font-size: 13px;">ALEX Digital Human</p>
+    <p style="font-size: 11px; margin-top: 4px;">WebGL 3D Fallback Mode Active</p>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { GLTFLoader } from 'three/addons/GLTFLoader.js';
+    import { OrbitControls } from 'three/addons/OrbitControls.js';
+
+    // ── Application State ──
+    const state = {
+      currentStatus: 'IDLE',   // IDLE, LISTENING, THINKING, SPEAKING, EXECUTING, SUCCESS, ERROR, SLEEPING
+      audioLevel: 0.0,
+      targetAudioLevel: 0.0,
+      speaking: false,
+      blinkTimer: 0.0,
+      nextBlinkTime: 2.5,
+      isBlinking: false,
+      blinkProgress: 0.0,
+      smileAmount: 0.0,
+      targetSmile: 0.0,
+      browAmount: 0.0,
+      targetBrow: 0.0,
+      dimFactor: 1.0,
+      targetDim: 1.0,
+      time: 0.0,
+      avatarMesh: null,
+      morphTargetIndices: {}
+    };
+
+    // ── Three.js Scene Setup ──
+    const container = document.getElementById('canvas-container');
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x030712, 0.12);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(0, 0.18, 2.3);
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.15;
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      console.warn('WebGL initialization error, falling back:', e);
+      document.getElementById('fallback-container').style.display = 'flex';
+    }
+
+    // ── Camera Controls ──
+    let controls = null;
+    if (renderer) {
+      controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxDistance = 3.5;
+      controls.minDistance = 1.2;
+      controls.maxPolarAngle = Math.PI / 2 + 0.1;
+      controls.minPolarAngle = Math.PI / 4;
+      controls.target.set(0, 0.15, 0);
+    }
+
+    document.getElementById('btn-reset-cam')?.addEventListener('click', () => {
+      camera.position.set(0, 0.18, 2.3);
+      if (controls) controls.target.set(0, 0.15, 0);
+    });
+
+    // ── Studio Lighting System ──
+    const ambientLight = new THREE.AmbientLight(0x0a192f, 1.2);
+    scene.add(ambientLight);
+
+    // Key Light (Warm soft studio)
+    const keyLight = new THREE.DirectionalLight(0xfff5ea, 2.2);
+    keyLight.position.set(1.5, 2.2, 2.0);
+    keyLight.castShadow = true;
+    scene.add(keyLight);
+
+    // Fill Light (Soft cool blue)
+    const fillLight = new THREE.DirectionalLight(0x38bdf8, 1.4);
+    fillLight.position.set(-1.8, 0.8, 1.5);
+    scene.add(fillLight);
+
+    // Rim Light (Signature Electric Cyan ALEX Accent)
+    const rimLight = new THREE.DirectionalLight(0x00e5ff, 3.5);
+    rimLight.position.set(0.0, 1.8, -2.2);
+    scene.add(rimLight);
+
+    // Floor bounce light
+    const floorBounce = new THREE.DirectionalLight(0x0284c7, 0.6);
+    floorBounce.position.set(0, -2, 1);
+    scene.add(floorBounce);
+
+    // ── Thinking / Particle Halo System ──
+    const particleCount = 70;
+    const particleGeometry = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+    const particleRadii = [];
+    const particleSpeeds = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      const angle = (i / particleCount) * Math.PI * 2;
+      const rad = 0.72 + (Math.random() - 0.5) * 0.15;
+      particlePositions[i * 3 + 0] = Math.cos(angle) * rad;
+      particlePositions[i * 3 + 1] = 0.25 + (Math.random() - 0.5) * 0.2;
+      particlePositions[i * 3 + 2] = Math.sin(angle) * rad;
+      particleRadii.push(rad);
+      particleSpeeds.push(0.5 + Math.random() * 0.8);
+    }
+    particleGeometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+
+    const particleMaterial = new THREE.PointsMaterial({
+      color: 0x8b5cf6,
+      size: 0.035,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending
+    });
+    const thinkingParticles = new THREE.Points(particleGeometry, particleMaterial);
+    scene.add(thinkingParticles);
+
+    // ── Character Loading ──
+    const loader = new GLTFLoader();
+    let avatarRoot = null;
+
+    loader.load(
+      'alex_avatar.glb',
+      (gltf) => {
+        avatarRoot = gltf.scene;
+        avatarRoot.position.set(0, -0.3, 0);
+        avatarRoot.scale.set(0.88, 0.88, 0.88);
+        scene.add(avatarRoot);
+
+        // Find primary mesh with morph targets
+        avatarRoot.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            if (child.morphTargetDictionary) {
+              state.avatarMesh = child;
+              state.morphTargetIndices = child.morphTargetDictionary;
+              console.log('Morph targets mapped:', child.morphTargetDictionary);
+            }
+          }
+        });
+      },
+      undefined,
+      (err) => {
+        console.error('GLB loading error:', err);
+        // Fallback display
+        document.getElementById('fallback-container').style.display = 'flex';
+      }
+    );
+
+    // ── State Transition Controller ──
+    const statusBadge = document.getElementById('status-badge');
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+    const waveBars = document.querySelectorAll('.wave-bar');
+
+    export function setAssistantState(newState) {
+      state.currentStatus = newState.toUpperCase();
+      statusBadge.className = 'status-badge state-' + newState.toLowerCase();
+      statusText.textContent = 'ALEX · ' + newState.toUpperCase();
+
+      // Adjust expression targets based on state
+      switch (state.currentStatus) {
+        case 'LISTENING':
+          state.targetSmile = 0.15;
+          state.targetBrow = 0.45;
+          state.targetDim = 1.0;
+          particleMaterial.opacity = 0.0;
+          rimLight.color.setHex(0x10b981);
+          break;
+        case 'THINKING':
+          state.targetSmile = 0.0;
+          state.targetBrow = 0.65;
+          state.targetDim = 1.0;
+          particleMaterial.color.setHex(0x8b5cf6);
+          rimLight.color.setHex(0xa855f7);
+          break;
+        case 'SPEAKING':
+          state.targetSmile = 0.2;
+          state.targetBrow = 0.1;
+          state.targetDim = 1.0;
+          particleMaterial.opacity = 0.0;
+          rimLight.color.setHex(0x38bdf8);
+          break;
+        case 'EXECUTING':
+          state.targetSmile = 0.1;
+          state.targetBrow = 0.3;
+          state.targetDim = 1.0;
+          particleMaterial.color.setHex(0xf59e0b);
+          rimLight.color.setHex(0xf59e0b);
+          break;
+        case 'SUCCESS':
+          state.targetSmile = 0.95; // Friendly positive smile
+          state.targetBrow = 0.2;
+          state.targetDim = 1.0;
+          particleMaterial.opacity = 0.0;
+          rimLight.color.setHex(0x10b981);
+          setTimeout(() => {
+            if (state.currentStatus === 'SUCCESS') setAssistantState('IDLE');
+          }, 2400);
+          break;
+        case 'ERROR':
+          state.targetSmile = 0.0;
+          state.targetBrow = 0.1;
+          state.targetDim = 0.85;
+          particleMaterial.opacity = 0.0;
+          rimLight.color.setHex(0xef4444);
+          break;
+        case 'SLEEPING':
+          state.targetSmile = 0.0;
+          state.targetBrow = 0.0;
+          state.targetDim = 0.35; // Dimmed
+          particleMaterial.opacity = 0.0;
+          rimLight.color.setHex(0x334155);
+          break;
+        default: // IDLE
+          state.targetSmile = 0.1;
+          state.targetBrow = 0.0;
+          state.targetDim = 1.0;
+          particleMaterial.opacity = 0.0;
+          rimLight.color.setHex(0x00e5ff);
+          break;
+      }
+    }
+
+    export function setAudioLevel(lvl) {
+      state.targetAudioLevel = Math.max(0.0, Math.min(1.0, lvl));
+    }
+
+    // ── External Event Listeners ──
+    window.addEventListener('message', (ev) => {
+      const data = ev.data;
+      if (!data) return;
+      if (data.type === 'state') setAssistantState(data.state);
+      if (data.type === 'audio_level') setAudioLevel(data.level);
+    });
+
+    // Also support local polling / WebSocket if available
+    function connectEventSource() {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/avatar_events`;
+        const ws = new WebSocket(wsUrl);
+        ws.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            if (msg.state) setAssistantState(msg.state);
+            if (msg.level !== undefined) setAudioLevel(msg.level);
+          } catch (_) {}
+        };
+      } catch (_) {}
+    }
+    connectEventSource();
+
+    // ── Animation Loop ──
+    let lastTime = performance.now();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const now = performance.now();
+      const delta = Math.min((now - lastTime) / 1000, 0.1);
+      lastTime = now;
+      state.time += delta;
+
+      // Smooth audio level
+      state.audioLevel += (state.targetAudioLevel - state.audioLevel) * 0.35;
+
+      // Voice wave visualization
+      if (waveBars.length > 0) {
+        waveBars.forEach((bar, idx) => {
+          const mult = 1.0 + Math.sin(state.time * 12 + idx) * 0.4;
+          const h = Math.max(4, Math.min(18, state.audioLevel * 30 * mult));
+          bar.style.height = `${h}px`;
+        });
+      }
+
+      // Smooth expressions
+      state.smileAmount += (state.targetSmile - state.smileAmount) * (delta * 4.0);
+      state.browAmount += (state.targetBrow - state.browAmount) * (delta * 4.0);
+      state.dimFactor += (state.targetDim - state.dimFactor) * (delta * 2.5);
+
+      // Apply dimming to lights
+      keyLight.intensity = 2.2 * state.dimFactor;
+      fillLight.intensity = 1.4 * state.dimFactor;
+
+      // ── Blinking Animation ──
+      state.blinkTimer += delta;
+      if (!state.isBlinking && state.blinkTimer > state.nextBlinkTime) {
+        state.isBlinking = true;
+        state.blinkProgress = 0.0;
+        state.blinkTimer = 0.0;
+        state.nextBlinkTime = 2.5 + Math.random() * 3.5;
+      }
+
+      let blinkWeight = 0.0;
+      if (state.currentStatus === 'SLEEPING') {
+        blinkWeight = 1.0; // Eyes closed while sleeping
+      } else if (state.isBlinking) {
+        state.blinkProgress += delta * 6.5; // ~150ms blink duration
+        if (state.blinkProgress < 1.0) {
+          blinkWeight = Math.sin(state.blinkProgress * Math.PI);
+        } else {
+          state.isBlinking = false;
+          blinkWeight = 0.0;
+        }
+      }
+
+      // ── Idle Breathing & Head Micro-Motion ──
+      if (avatarRoot) {
+        if (state.currentStatus === 'SLEEPING') {
+          // Slow deep sleeping breathing
+          avatarRoot.position.y = -0.3 + Math.sin(state.time * 0.9) * 0.008;
+          avatarRoot.rotation.x = 0.08 + Math.sin(state.time * 0.9) * 0.01;
+          avatarRoot.rotation.y = 0.0;
+        } else {
+          // Natural lively idle
+          const breath = Math.sin(state.time * 1.8) * 0.007;
+          avatarRoot.position.y = -0.3 + breath;
+          // Micro head saccades
+          const saccadeX = Math.sin(state.time * 0.6) * 0.02 + (state.currentStatus === 'LISTENING' ? 0.04 : 0.0);
+          const saccadeY = Math.sin(state.time * 0.45) * 0.035;
+          avatarRoot.rotation.x = saccadeX;
+          avatarRoot.rotation.y = saccadeY;
+          avatarRoot.rotation.z = Math.sin(state.time * 0.8) * 0.01;
+        }
+      }
+
+      // ── Thinking Particles Animation ──
+      if (state.currentStatus === 'THINKING' || state.currentStatus === 'EXECUTING') {
+        particleMaterial.opacity = Math.min(0.85, particleMaterial.opacity + delta * 2.0);
+        thinkingParticles.rotation.y += delta * 1.4;
+        const posAttr = particleGeometry.attributes.position;
+        for (let i = 0; i < particleCount; i++) {
+          const speed = particleSpeeds[i];
+          const curY = posAttr.getY(i);
+          let newY = curY + delta * 0.08 * speed;
+          if (newY > 0.6) newY = -0.1;
+          posAttr.setY(i, newY);
+        }
+        posAttr.needsUpdate = true;
+      } else {
+        particleMaterial.opacity = Math.max(0.0, particleMaterial.opacity - delta * 3.0);
+      }
+
+      // ── Apply Morph Targets to Avatar Mesh ──
+      if (state.avatarMesh && state.avatarMesh.morphTargetInfluences) {
+        const infs = state.avatarMesh.morphTargetInfluences;
+        const dict = state.morphTargetIndices;
+
+        // 1. Jaw Open (Speech & Audio Level)
+        const jawIdx = dict['jawOpen'];
+        if (jawIdx !== undefined) {
+          let jawTarget = 0.0;
+          if (state.currentStatus === 'SPEAKING' || state.speaking || state.audioLevel > 0.05) {
+            // High fidelity mouth articulation driven by live PCM RMS level
+            jawTarget = Math.min(1.0, state.audioLevel * 1.8 + Math.sin(state.time * 18.0) * 0.08);
+          }
+          infs[jawIdx] += (jawTarget - infs[jawIdx]) * 0.45;
+        }
+
+        // 2. Friendly Smile
+        const smileIdx = dict['mouthSmile'];
+        if (smileIdx !== undefined) {
+          infs[smileIdx] = state.smileAmount;
+        }
+
+        // 3. Eyelids (Blinking)
+        const blinkLIdx = dict['eyeBlinkLeft'];
+        const blinkRIdx = dict['eyeBlinkRight'];
+        if (blinkLIdx !== undefined) infs[blinkLIdx] = blinkWeight;
+        if (blinkRIdx !== undefined) infs[blinkRIdx] = blinkWeight;
+
+        // 4. Brows (Listening / Thinking)
+        const browIdx = dict['browRaise'];
+        if (browIdx !== undefined) infs[browIdx] = state.browAmount;
+      }
+
+      if (controls) controls.update();
+      if (renderer) renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // ── Window Resize ──
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      if (renderer) renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Expose helpers globally for host interaction
+    window.setAssistantState = setAssistantState;
+    window.setAudioLevel = setAudioLevel;
+  </script>
+</body>
+</html>

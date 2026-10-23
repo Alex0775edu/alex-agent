@@ -1,0 +1,33 @@
+{
+  "screen": true,
+  "camera": true,
+  "microphone": true,
+  "recording": false,
+  "remote_access": false,
+  "retention_minutes": 15,
+  "sensitive_patterns": [
+    "1password",
+    "bitwarden",
+    "keepass",
+    "lastpass",
+    "credential",
+    "authenticator",
+    "password manager",
+    "bank",
+    "banking",
+    "netbanking",
+    "paypal",
+    "credit card",
+    "incognito",
+    "inprivate",
+    "private browsing",
+    "private window",
+    "crypto",
+    "binance",
+    "metamask",
+    "ledger live",
+    "keychain"
+  ],
+  "is_paused": false,
+  "last_updated": "2026-10-10 13:37:38"
+}

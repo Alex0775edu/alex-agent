@@ -1,0 +1,9 @@
+{
+  "enabled": true,
+  "dnd_mode": true,
+  "quiet_hours_enabled": true,
+  "quiet_hours_start": "22:00",
+  "quiet_hours_end": "07:00",
+  "cooldown_seconds": 60.0,
+  "min_spoken_priority": "HIGH"
+}

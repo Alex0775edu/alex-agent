@@ -1,0 +1,12 @@
+{
+  "windows_startup_enabled": true,
+  "greet_on_startup": true,
+  "morning_briefing_enabled": false,
+  "news_briefing_enabled": true,
+  "weather_enabled": true,
+  "system_health_enabled": true,
+  "task_summary_enabled": true,
+  "briefing_length": "short",
+  "startup_voice_enabled": true,
+  "silent_mode": false
+}
