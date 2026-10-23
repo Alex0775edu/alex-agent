@@ -1,7 +1,7 @@
 # ⚙️ ALEX (v2.0)
 ### Personal AI Assistant for Aditya Rajak — Addressed as "Aditya Sir" 
 
-> 📺 **[Watch the full setup video on YouTube](https://www.youtube.com/@Aditya Kumar)**
+
 
 A real-time voice AI that can hear, see, speak, and control your computer — on any OS. Supports Windows, macOS, and Linux. Built on the Gemini Live API for native audio streaming, delivering zero subscriptions and total digital autonomy.
 
@@ -392,7 +392,4 @@ Licensed under **[Creative Commons BY-NC 4.0](https://creativecommons.org/licens
 Engineered by a developer building a real-world ALEX-style assistant.
 ⭐ **Star the repository to support the journey to Mark 100.**
 
-| Platform | Link |
-| --- | --- |
-| YouTube | [@Aditya Kumar](https://www.youtube.com/@Aditya Kumar) |
-| Instagram | [@Aditya Kumar](https://www.instagram.com/Aditya Kumar) |
+
