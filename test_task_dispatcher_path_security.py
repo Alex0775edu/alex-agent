@@ -1,4 +1,5 @@
 import sys
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,6 +17,30 @@ class DispatcherPathSecurityTests(unittest.TestCase):
     def _with_roots(self, roots):
         resolved_roots = [Path(root).resolve(strict=False) for root in roots]
         return patch.object(TaskDispatcher, "_get_authorized_roots", return_value=resolved_roots)
+
+    def _create_junction(self, junction, target):
+        if sys.platform != "win32":
+            self.skipTest("Windows junctions are Windows-specific")
+        junction.parent.mkdir(parents=True, exist_ok=True)
+        target.mkdir(parents=True, exist_ok=True)
+        quote = lambda value: "'" + str(value).replace("'", "''") + "'"
+        script = (
+            "$ErrorActionPreference = 'Stop'; "
+            f"New-Item -ItemType Junction -Path {quote(junction)} "
+            f"-Target {quote(target)} | Out-Null"
+        )
+        try:
+            result = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            self.skipTest(f"Windows junction creation unavailable: {exc}")
+        if result.returncode != 0 or not junction.is_junction():
+            self.skipTest(f"Windows junction creation unavailable: {result.stderr.strip()}")
 
     def _report_patches(self, workspace, project_dir):
         project_manager = SimpleNamespace(
@@ -141,6 +166,27 @@ class DispatcherPathSecurityTests(unittest.TestCase):
             self.assertTrue(source_file.is_file())
             self.assertFalse((outside_root / "report.pdf").exists())
 
+    def test_move_files_rejects_destination_junction_escape_before_moves(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            allowed_root = root / "approved"
+            source = allowed_root / "Downloads"
+            destination = source / "Organized"
+            outside_root = root / "outside"
+            source.mkdir(parents=True)
+            destination.mkdir(parents=True)
+            source_file = source / "report.pdf"
+            source_file.write_text("synthetic", encoding="utf-8")
+            self._create_junction(destination / "Documents", outside_root)
+
+            with self._with_roots([allowed_root]):
+                result = self.dispatcher._move_files({"source": str(source), "destination": str(destination)})
+
+            self.assertFalse(result.success)
+            self.assertEqual(result.error, "DESTINATION_PATH_ESCAPE")
+            self.assertTrue(source_file.is_file())
+            self.assertFalse((outside_root / "report.pdf").exists())
+
     def test_report_project_traversal_is_sanitized_and_confined(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             workspace = Path(temporary_directory) / "workspace"
@@ -245,6 +291,34 @@ class DispatcherPathSecurityTests(unittest.TestCase):
             self.assertNotIn(outside_downloads.resolve(), roots)
             self.assertIsNone(resolved)
             self.assertEqual(error, "PATH_OUTSIDE_APPROVED_ROOTS")
+
+    def test_user_folder_junction_escape_is_not_authorized(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            home = root / "profile"
+            outside_downloads = root / "outside" / "Downloads"
+            self._create_junction(home / "Downloads", outside_downloads)
+
+            with patch("core.task_dispatcher.Path.home", return_value=home):
+                roots = TaskDispatcher._get_authorized_roots()
+                resolved, error = TaskDispatcher._resolve_authorized_path(home / "Downloads" / "synthetic")
+
+            self.assertNotIn(outside_downloads.resolve(), roots)
+            self.assertIsNone(resolved)
+            self.assertEqual(error, "PATH_OUTSIDE_APPROVED_ROOTS")
+
+    def test_resolve_authorized_path_accepts_junction_target_inside_root(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory) / "approved"
+            target = root / "real" / "Downloads"
+            junction = root / "alias"
+            self._create_junction(junction, target)
+
+            with self._with_roots([root]):
+                resolved, error = TaskDispatcher._resolve_authorized_path(junction / "synthetic")
+
+            self.assertEqual(error, "")
+            self.assertEqual(resolved, target / "synthetic")
 
     @unittest.skipUnless(sys.platform == "win32", "Windows system path policy is Windows-specific")
     def test_resolve_authorized_path_rejects_windows_system_directories_unpatched(self):
