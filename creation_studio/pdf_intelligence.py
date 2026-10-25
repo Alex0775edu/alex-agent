@@ -15,6 +15,19 @@ from typing import Any, Dict, List, Optional, Tuple
 from creation_studio.models import ValidationResult
 
 
+def _get_pdf_reader_writer():
+    """Returns (PdfReader, PdfWriter) favoring pypdf, falling back to PyPDF2."""
+    try:
+        import pypdf
+        return pypdf.PdfReader, pypdf.PdfWriter
+    except ImportError:
+        try:
+            import PyPDF2
+            return PyPDF2.PdfReader, PyPDF2.PdfWriter
+        except ImportError:
+            raise ImportError("Neither pypdf nor PyPDF2 is installed in the current environment.")
+
+
 class PdfIntelligenceEngine:
     """Provides non-destructive PDF analysis, text extraction, splitting,
 
@@ -26,54 +39,169 @@ class PdfIntelligenceEngine:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def extract_text_and_meta(self, pdf_path: str | Path) -> Dict[str, Any]:
-        """Extract text and metadata from PDF without altering source."""
-        p = Path(pdf_path).resolve()
-        if not p.exists():
-            return {"error": f"PDF file not found: {pdf_path}"}
+        """Extract text and metadata from PDF without altering source.
 
-        # Check for pypdf
+        Prefers pdfplumber for high-fidelity extraction and tries the
+        compatibility reader if it fails or returns no text.
+        """
         try:
-            from pypdf import PdfReader
-            reader = PdfReader(str(p))
-            if reader.is_encrypted:
+            p = Path(pdf_path).expanduser().resolve(strict=True)
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return {
+                "error": "PDF file not found or inaccessible.",
+                "file_name": "",
+                "is_valid": False,
+                "pages_count": 0,
+                "full_text": "",
+            }
+
+        if not p.is_file():
+            return {
+                "error": "PDF path is not a file.",
+                "file_name": p.name,
+                "is_valid": False,
+                "pages_count": 0,
+                "full_text": "",
+            }
+
+        if p.stat().st_size == 0:
+            return {
+                "error": "PDF file is empty (0 bytes).",
+                "file_name": p.name,
+                "is_valid": False,
+                "is_empty": True,
+                "pages_count": 0,
+                "full_text": "",
+            }
+
+        # 1. Prefer pdfplumber for rich layout & text extraction
+        try:
+            import pdfplumber
+            with pdfplumber.open(str(p)) as pdf:
+                page_texts = []
+                for idx, page in enumerate(pdf.pages):
+                    txt = page.extract_text() or ""
+                    page_texts.append({"page": idx + 1, "text": txt})
+
+                full_text = "\n\n".join(pt["text"] for pt in page_texts).strip()
+                meta = {str(k): str(v) for k, v in (pdf.metadata or {}).items()}
+
+                if not full_text:
+                    raise ValueError("No text extracted by preferred reader.")
+
                 return {
+                    "file_name": p.name,
+                    "pages_count": len(pdf.pages),
+                    "is_valid": True,
+                    "is_encrypted": False,
+                    "is_scanned": False,
+                    "full_text": full_text,
+                    "word_count": len(full_text.split()),
+                    "pages": page_texts,
+                    "metadata": meta,
+                    "engine": "pdfplumber",
+                }
+
+        except Exception as plumber_err:
+            # Check for encryption errors specifically
+            err_str = str(plumber_err).lower()
+            if any(marker in err_str for marker in ("password", "encrypt", "decrypt")):
+                return {
+                    "file_name": p.name,
+                    "pages_count": 0,
+                    "is_valid": False,
                     "is_encrypted": True,
-                    "pages_count": len(reader.pages),
-                    "text": "[Encrypted PDF - Password required]",
+                    "full_text": "",
                     "metadata": {},
+                    "error": "PDF is encrypted and password-protected.",
+                }
+            # If not encryption, attempt PyPDF2 fallback
+            pass
+
+        # 2. Fallback to PyPDF2
+        try:
+            PdfReader, _ = _get_pdf_reader_writer()
+            reader = PdfReader(str(p))
+            is_encrypted = getattr(reader, "is_encrypted", None)
+            if is_encrypted is None:
+                is_encrypted = getattr(reader, "isEncrypted", False)
+            if is_encrypted:
+                return {
+                    "file_name": p.name,
+                    "is_valid": False,
+                    "is_encrypted": True,
+                    "pages_count": 0,
+                    "full_text": "",
+                    "metadata": {},
+                    "error": "PDF is encrypted and password-protected.",
+                }
+
+            pages = reader.pages
+            if len(pages) == 0:
+                return {
+                    "file_name": p.name,
+                    "is_valid": False,
+                    "is_empty": True,
+                    "is_encrypted": False,
+                    "pages_count": 0,
+                    "full_text": "",
+                    "word_count": 0,
+                    "pages": [],
+                    "metadata": {},
+                    "error": "PDF contains no pages.",
                 }
 
             page_texts = []
-            for idx, page in enumerate(reader.pages):
+            for idx, page in enumerate(pages):
                 txt = page.extract_text() or ""
                 page_texts.append({"page": idx + 1, "text": txt})
 
-            full_text = "\n\n".join([pt["text"] for pt in page_texts])
-            meta = {k: str(v) for k, v in (reader.metadata or {}).items()}
+            full_text = "\n\n".join(pt["text"] for pt in page_texts).strip()
+            meta = {str(k): str(v) for k, v in (reader.metadata or {}).items()}
+
+            if not full_text:
+                return {
+                    "file_name": p.name,
+                    "pages_count": len(pages),
+                    "is_valid": False,
+                    "is_encrypted": False,
+                    "is_scanned": True,
+                    "full_text": "",
+                    "word_count": 0,
+                    "pages": page_texts,
+                    "metadata": meta,
+                    "error": "PDF contains no extractable text (OCR is not supported).",
+                }
 
             return {
                 "file_name": p.name,
-                "pages_count": len(reader.pages),
+                "pages_count": len(pages),
+                "is_valid": True,
                 "is_encrypted": False,
+                "is_scanned": False,
                 "full_text": full_text,
                 "word_count": len(full_text.split()),
                 "pages": page_texts,
                 "metadata": meta,
+                "engine": "PyPDF2",
             }
         except ImportError:
-            # Fallback text scan
-            content = p.read_bytes()
-            words = len(content.split())
             return {
                 "file_name": p.name,
-                "pages_count": 1,
-                "is_encrypted": False,
-                "full_text": f"[pypdf not available; read {len(content)} raw bytes]",
-                "word_count": words,
-                "metadata": {},
+                "error": "No supported PDF library is available.",
+                "is_valid": False,
+                "pages_count": 0,
+                "full_text": "",
             }
-        except Exception as e:
-            return {"error": f"Failed to extract PDF: {e}"}
+        except Exception:
+            return {
+                "file_name": p.name,
+                "error": "Failed to extract PDF; the document is corrupt or unsupported.",
+                "is_valid": False,
+                "is_corrupt": True,
+                "pages_count": 0,
+                "full_text": "",
+            }
 
     def split_pdf(self, pdf_path: str | Path, start_page: int, end_page: int) -> Tuple[Path, ValidationResult]:
         """Extract a sub-range of pages into a new PDF file."""
@@ -82,7 +210,7 @@ class PdfIntelligenceEngine:
         target_path = self.output_dir / out_name
 
         try:
-            from pypdf import PdfReader, PdfWriter
+            PdfReader, PdfWriter = _get_pdf_reader_writer()
             reader = PdfReader(str(src))
             writer = PdfWriter()
 
@@ -118,9 +246,8 @@ class PdfIntelligenceEngine:
         """Merge multiple PDF documents into a single validated deliverable."""
         target_path = self.output_dir / output_filename
         try:
-            from pypdf import PdfWriter
+            PdfReader, PdfWriter = _get_pdf_reader_writer()
             writer = PdfWriter()
-            total_pages = 0
 
             for p_str in pdf_paths:
                 p = Path(p_str).resolve()
@@ -131,7 +258,6 @@ class PdfIntelligenceEngine:
                 writer.write(f)
 
             size = target_path.stat().st_size
-            from pypdf import PdfReader
             r = PdfReader(str(target_path))
             total_pages = len(r.pages)
 
@@ -151,4 +277,3 @@ class PdfIntelligenceEngine:
                 format="pdf",
                 error_message=f"Merge failed: {e}"
             )
-

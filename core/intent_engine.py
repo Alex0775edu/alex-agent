@@ -120,6 +120,33 @@ class IntentEngine:
             r"^(?:alex\s*,?\s*)?search\s+youtube\s+for\s+(.+)$",
             r"^(?:alex\s*,?\s*)?find\s+(.+)\s+on\s+youtube$",
         ]
+        # 8b. Goals: Compound Browser & Platform Search
+        self.compound_browser_search_patterns = [
+            (
+                r"^(?:alex\s*,?\s*)?([a-zA-Z0-9\s]+?)\s+(?:kholo|open\s*karo|chalao|start\s*karo)\s+aur\s+([a-zA-Z0-9\s]+?)\s+par\s+(.+?)\s+(?:search\s*karo|dhundo|play\s*karo|chalao|dekho)[\.\?!]?$",
+                ("browser", "platform", "query")
+            ),
+            (
+                r"^(?:alex\s*,?\s*)?(?:open|launch|start)\s+([a-zA-Z0-9\s]+?)\s+and\s+search\s+(?:for\s+)?(.+?)\s+on\s+([a-zA-Z0-9\s]+)[\.\?!]?$",
+                ("browser", "query", "platform")
+            ),
+            (
+                r"^(?:alex\s*,?\s*)?([a-zA-Z0-9\s]+?)\s+par\s+(.+?)\s+(?:search\s*karo|dhundo|play\s*karo|chalao)\s+aur\s+([a-zA-Z0-9\s]+?)\s+(?:kholo|open\s*karo|chalao)[\.\?!]?$",
+                ("platform", "query", "browser")
+            ),
+            (
+                r"^(?:alex\s*,?\s*)?([a-zA-Z0-9\s]+?)\s+(?:kholo|open\s*karo|chalao|start\s*karo)\s+aur\s+([a-zA-Z0-9\s]+?)\s+par\s+(?:search\s*karo|dhundo)[\.\?!]?$",
+                ("browser", "platform")
+            ),
+            (
+                r"^(?:alex\s*,?\s*)?([a-zA-Z0-9\s]+?)\s+(?:kholo|open\s*karo|chalao|start\s*karo)\s+aur\s+(.+?)\s+(?:search\s*karo|dhundo)[\.\?!]?$",
+                ("browser", "query")
+            ),
+            (
+                r"^(?:alex\s*,?\s*)?(?:open|launch|start)\s+([a-zA-Z0-9\s]+?)\s+and\s+search\s+(?:for\s+)?(.+)[\.\?!]?$",
+                ("browser", "query")
+            ),
+        ]
         # 9. Focus Mode
         self.focus_patterns = [
             r"\b(?:(\d+)\s*(?:hours?|hrs?|minutes?|mins?)\s*focus\s*mode)\b",
@@ -197,6 +224,58 @@ class IntentEngine:
         self.dnd_patterns = [
             r"\b(?:do\s*not\s*disturb|dnd)\s*(?:mode\s*)?(?:on|off|toggle|chalao|band\s*karo)?\b",
         ]
+        # 14g. PC Automation: Open Website, Web Search, Files & Folders
+        self.open_website_patterns = [
+            r"^(?:alex\s*,?\s*)?(?:open|go\s*to|launch|visit)?\s*(?:website\s*)?(https?://[^\s]+|[a-zA-Z0-9\-_]+\.(?:com|org|io|net|edu|in|gov|ai|dev|co))(?:\s+(?:kholo|open\s*karo|chalao))?[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?([a-zA-Z0-9\-_]+\.(?:com|org|io|net|edu|in|gov|ai|dev|co))\s+(?:kholo|open\s*karo|chalao)[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?(?:open|launch|visit)\s+(?:website\s*)?([a-zA-Z0-9\-_]+\.[a-zA-Z]{2,})[\.\?!]?$",
+        ]
+        self.web_search_patterns = [
+            r"^(?:alex\s*,?\s*)?(?:google|web|internet)\s*par\s+(.+?)\s+(?:search\s*karo|dhundo)[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?search\s+(?:on\s+google|on\s+the\s+web|the\s+web)?\s*for\s+(.+)[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?search\s+(.+?)\s+on\s+google[\.\?!]?$",
+        ]
+        self.list_files_patterns = [
+            r"^(?:alex\s*,?\s*)?([a-zA-Z0-9_\-\/\.]+)\s*(?:folder|directory)?\s*(?:ke\s*)?files?\s*(?:list\s*karo|dikhao|batao|show\s*karo)[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?(?:list|show)\s*files?\s*(?:in|inside)?\s*([a-zA-Z0-9_\-\/\.]+)[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?(?:list\s*files|files\s*list\s*karo|files\s*dikhao)[\.\?!]?$",
+        ]
+        self.read_file_patterns = [
+            r"^(?:alex\s*,?\s*)?([a-zA-Z0-9_\-\/\.]+)\s*(?:file\s*)?(?:padho|read\s*karo|dikhao)[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?read\s*(?:file)?\s*([a-zA-Z0-9_\-\/\.]+)[\.\?!]?$",
+        ]
+        self.search_files_patterns = [
+            r"^(?:alex\s*,?\s*)?(?:([a-zA-Z0-9_\-\/\.]+)\s*(?:mein|par)\s*)?([a-zA-Z0-9_\-\/\.]+)\s*file\s*(?:dhundo|search\s*karo)[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?find\s*file\s*([a-zA-Z0-9_\-\/\.]+)(?:\s*(?:in|on)\s*([a-zA-Z0-9_\-\/\.]+))?[\.\?!]?$",
+            r"^(?:alex\s*,?\s*)?search\s*(?:for\s*)?file\s*([a-zA-Z0-9_\-\/\.]+)[\.\?!]?$",
+        ]
+        self.create_folder_patterns = [
+            (
+                r"^(?:alex\s*,?\s*)?(?:([a-zA-Z0-9_\-\/\.]+)\s*(?:mein|par)\s*)?([a-zA-Z0-9_\-]+)\s*(?:naam\s*ka\s*)?folder\s*(?:banao|create\s*karo)[\.\?!]?$",
+                ("location", "folder_name")
+            ),
+            (
+                r"^(?:alex\s*,?\s*)?create\s*folder\s*([a-zA-Z0-9_\-]+)(?:\s*(?:in|on)\s*([a-zA-Z0-9_\-\/\.]+))?[\.\?!]?$",
+                ("folder_name", "location")
+            ),
+        ]
+        self.create_file_patterns = [
+            (
+                r"^(?:alex\s*,?\s*)?(?:([a-zA-Z0-9_\-\/\.]+)\s*(?:mein|par)\s*)?([a-zA-Z0-9_\-\.]+)\s*(?:naam\s*ki\s*)?file\s*(?:banao|create\s*karo)[\.\?!]?$",
+                ("location", "file_name")
+            ),
+            (
+                r"^(?:alex\s*,?\s*)?create\s*file\s*([a-zA-Z0-9_\-\.]+)(?:\s*(?:in|on)\s*([a-zA-Z0-9_\-\/\.]+))?[\.\?!]?$",
+                ("file_name", "location")
+            ),
+        ]
+
+        # 14h. SkillSum Resume Automation
+        self.skillsum_patterns = [
+            r"^(?:alex\s*,?\s*)?(?:skillsum\s+)?(?:evaluate|parse|analyze|process)\s+resume\s+(.+)$",
+            r"^(?:alex\s*,?\s*)?(?:skillsum\s+)?resume\s+(.+?)\s+(?:ko\s*)?(?:evaluate|analyze|parse|check)\s*(?:karo|kar\s*do)?$",
+        ]
+
         # 15. Open Application
         self.open_app_patterns = [
             r"^(?:alex\s*,?\s*)?(?:open|launch|start|run)\s+([a-zA-Z0-9\s\.\-_]+)$",
@@ -279,7 +358,16 @@ class IntentEngine:
             if re.search(p, clean_lower):
                 return IntentResult("ORGANIZE_DOWNLOADS", 0.95, {}, lang, is_local_command=True)
 
-        # 5. YouTube Search Goal
+        # 5. Compound Browser Search Goal (e.g. "Chrome kholo aur YouTube par Python tutorial search karo")
+        for p, fields in self.compound_browser_search_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                slots = dict(zip(fields, [g.strip() for g in m.groups()]))
+                if "platform" not in slots:
+                    slots["platform"] = "Google"
+                return IntentResult("COMPOUND_BROWSER_SEARCH", 0.98, slots, lang, is_local_command=True)
+
+        # 5b. YouTube Search Goal
         for p in self.yt_search_patterns:
             m = re.match(p, clean, flags=re.IGNORECASE)
             if m:
@@ -444,6 +532,71 @@ class IntentEngine:
             if re.search(p, clean_lower):
                 return IntentResult("WORKFLOW_EMAIL", 0.96, {"raw": clean}, lang, is_local_command=True)
 
+        # 14g. PC Automation: Open Website, Web Search, Files & Folders
+        for p in self.open_website_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                u = m.group(1).strip()
+                return IntentResult("OPEN_WEBSITE", 0.96, {"url": u}, lang, is_local_command=True)
+
+        for p in self.web_search_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                q = m.group(1).strip()
+                return IntentResult("WEB_SEARCH", 0.95, {"query": q, "engine": "google"}, lang, is_local_command=True)
+
+        for p in self.list_files_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                loc = m.group(1).strip() if (m.lastindex and m.group(1)) else "desktop"
+                return IntentResult("LIST_FILES", 0.95, {"path": loc}, lang, is_local_command=True)
+
+        for p in self.read_file_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                f_name = m.group(1).strip()
+                return IntentResult("READ_FILE", 0.95, {"path": f_name}, lang, is_local_command=True)
+
+        for p, fields in self.create_folder_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                slots = {}
+                for field_name, val in zip(fields, m.groups()):
+                    if val:
+                        slots[field_name] = val.strip()
+                if "location" not in slots:
+                    slots["location"] = "desktop"
+                return IntentResult("CREATE_FOLDER", 0.95, slots, lang, is_local_command=True)
+
+        for p, fields in self.create_file_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                slots = {"content": ""}
+                for field_name, val in zip(fields, m.groups()):
+                    if val:
+                        slots[field_name] = val.strip()
+                if "location" not in slots:
+                    slots["location"] = "desktop"
+                return IntentResult("CREATE_FILE", 0.95, slots, lang, is_local_command=True)
+
+        # 14h. SkillSum Resume Automation
+        for p in self.skillsum_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                path_val = m.group(1).strip()
+                return IntentResult("SKILLSUM_RESUME_EVAL", 0.96, {"resume_path": path_val}, lang, is_local_command=True)
+
+        for p in self.search_files_patterns:
+            m = re.match(p, clean, flags=re.IGNORECASE)
+            if m:
+                if m.lastindex >= 2 and m.group(2):
+                    loc = m.group(2).strip()
+                    q = m.group(1).strip()
+                else:
+                    loc = "desktop"
+                    q = m.group(1).strip()
+                return IntentResult("SEARCH_FILES", 0.95, {"query": q, "location": loc}, lang, is_local_command=True)
+
         # 15. Open Application
         for p in self.open_app_patterns:
             m = re.match(p, clean, flags=re.IGNORECASE)
@@ -482,7 +635,7 @@ class IntentEngine:
         from core.agent_engine import agent_engine
 
         # Security check:
-        privileged_intents = ("OPEN_APPLICATION", "VOLUME_UP", "VOLUME_DOWN", "VOLUME_MUTE", "ORGANIZE_DOWNLOADS", "CLIPBOARD_MODE")
+        privileged_intents = ("OPEN_APPLICATION", "COMPOUND_BROWSER_SEARCH", "OPEN_WEBSITE", "WEB_SEARCH", "CREATE_FOLDER", "CREATE_FILE", "DELETE_FILE", "LIST_FILES", "READ_FILE", "SEARCH_FILES", "VOLUME_UP", "VOLUME_DOWN", "VOLUME_MUTE", "ORGANIZE_DOWNLOADS", "CLIPBOARD_MODE")
         if res.intent in privileged_intents:
             allowed, reason = security_manager.check_permission("computer_control")
             if not allowed:
@@ -520,6 +673,21 @@ class IntentEngine:
 
         if res.intent == "ORGANIZE_DOWNLOADS":
             out = agent_engine.execute_organize_downloads()
+            res.handled = True
+            res.response_text = out.summary_message
+            return res
+
+        if res.intent == "COMPOUND_BROWSER_SEARCH":
+            browser = res.slots.get("browser", "Chrome")
+            platform = res.slots.get("platform", "YouTube")
+            query = res.slots.get("query", "").strip()
+
+            out = agent_engine.execute_compound_browser_search(
+                browser=browser,
+                platform=platform,
+                query=query,
+                lang=lang
+            )
             res.handled = True
             res.response_text = out.summary_message
             return res
@@ -665,6 +833,152 @@ class IntentEngine:
             res.response_text = format_diagnostics_report(report_dict, lang=lang)
             return res
 
+        if res.intent == "OPEN_WEBSITE":
+            url = res.slots.get("url", "").strip()
+            if not url.startswith("http://") and not url.startswith("https://"):
+                url = "https://" + url
+            try:
+                import webbrowser
+                from core.app_adapters import app_registry
+                adapter = app_registry.get_adapter("browser") or app_registry.get_adapter("chrome")
+                if adapter and hasattr(adapter, "launch"):
+                    adapter.launch(url)
+                else:
+                    webbrowser.open(url)
+                res.handled = True
+                res.response_text = (
+                    f"{url} browser mein open kar diya hai, {OWNER_ADDRESS}."
+                    if lang in ("hindi", "hinglish") else
+                    f"Opened {url} in your browser, {OWNER_ADDRESS}."
+                )
+            except Exception as e:
+                res.handled = True
+                res.response_text = f"Could not open website: {e}"
+            return res
+
+        if res.intent == "WEB_SEARCH":
+            q = res.slots.get("query", "").strip()
+            if not q:
+                res.handled = True
+                res.response_text = (
+                    f"Google par kya search karna hai, {OWNER_ADDRESS}?"
+                    if lang in ("hindi", "hinglish") else
+                    f"What would you like to search for on the web, {OWNER_ADDRESS}?"
+                )
+                return res
+            try:
+                import urllib.parse
+                import webbrowser
+                encoded = urllib.parse.quote_plus(q)
+                search_url = f"https://www.google.com/search?q={encoded}"
+                from core.app_adapters import app_registry
+                adapter = app_registry.get_adapter("browser") or app_registry.get_adapter("chrome")
+                if adapter and hasattr(adapter, "launch"):
+                    adapter.launch(search_url)
+                else:
+                    webbrowser.open(search_url)
+                res.handled = True
+                res.response_text = (
+                    f"Google par '{q}' search kar diya hai, {OWNER_ADDRESS}."
+                    if lang in ("hindi", "hinglish") else
+                    f"Searched for '{q}' on Google, {OWNER_ADDRESS}."
+                )
+            except Exception as e:
+                res.handled = True
+                res.response_text = f"Could not perform web search: {e}"
+            return res
+
+        if res.intent == "LIST_FILES":
+            target_path = res.slots.get("path", "desktop").strip()
+            try:
+                from actions.file_controller import list_files
+                msg = list_files(target_path)
+                res.handled = True
+                res.response_text = f"{OWNER_ADDRESS}:\n{msg}"
+            except Exception as e:
+                res.handled = True
+                res.response_text = f"Error listing files: {e}"
+            return res
+
+        if res.intent == "READ_FILE":
+            f_path = res.slots.get("path", "").strip()
+            try:
+                from actions.file_controller import read_file
+                content = read_file(f_path)
+                # Redact any passwords/keys
+                content = re.sub(r"""(?i)(api[_-]?key|token|secret|password|auth)[\s:=]+["']?([a-zA-Z0-9_\-\.]+){8,}["']?""", r"\1: [REDACTED]", content)
+                res.handled = True
+                res.response_text = f"{OWNER_ADDRESS}, file content:\n\n{content}"
+            except Exception as e:
+                res.handled = True
+                res.response_text = f"Error reading file: {e}"
+            return res
+
+        if res.intent == "SEARCH_FILES":
+            q = res.slots.get("query", "").strip()
+            loc = res.slots.get("location", "desktop").strip()
+            try:
+                from actions.file_controller import find_files
+                msg = find_files(path=loc, name=q)
+                res.handled = True
+                res.response_text = f"{OWNER_ADDRESS}:\n{msg}"
+            except Exception as e:
+                res.handled = True
+                res.response_text = f"Error searching files: {e}"
+            return res
+
+        if res.intent == "CREATE_FOLDER":
+            f_name = res.slots.get("folder_name", "").strip()
+            loc = res.slots.get("location", "desktop").strip()
+            try:
+                from actions.file_controller import create_folder
+                msg = create_folder(path=loc, name=f_name)
+                res.handled = True
+                res.response_text = (
+                    f"{OWNER_ADDRESS}, '{f_name}' folder {loc} mein create kar diya gaya hai."
+                    if lang in ("hindi", "hinglish") else
+                    f"Created folder '{f_name}' in {loc}, {OWNER_ADDRESS}."
+                )
+            except Exception as e:
+                res.handled = True
+                res.response_text = f"Error creating folder: {e}"
+            return res
+
+        if res.intent == "CREATE_FILE":
+            f_name = res.slots.get("file_name", "").strip()
+            loc = res.slots.get("location", "desktop").strip()
+            content = res.slots.get("content", "").strip()
+            try:
+                from actions.file_controller import create_file, _resolve_path
+                target = _resolve_path(loc) / f_name
+                # Consequential Action Check: ask before overwriting!
+                if target.exists():
+                    res.handled = True
+                    res.response_text = (
+                        f"{OWNER_ADDRESS}, '{f_name}' already exists. Kya aap isse overwrite karna chahte hain?"
+                        if lang in ("hindi", "hinglish") else
+                        f"'{f_name}' already exists, {OWNER_ADDRESS}. Would you like to overwrite it?"
+                    )
+                    from core.voice_pipeline import voice_pipeline
+                    voice_pipeline.request_confirmation(
+                        description=f"Overwrite file {f_name}",
+                        action_fn=lambda: create_file(path=loc, name=f_name, content=content),
+                        prompt_msg=res.response_text
+                    )
+                    return res
+
+                msg = create_file(path=loc, name=f_name, content=content)
+                res.handled = True
+                res.response_text = (
+                    f"{OWNER_ADDRESS}, '{f_name}' file {loc} mein create kar di gayi hai."
+                    if lang in ("hindi", "hinglish") else
+                    f"Created file '{f_name}' in {loc}, {OWNER_ADDRESS}."
+                )
+            except Exception as e:
+                res.handled = True
+                res.response_text = f"Error creating file: {e}"
+            return res
+
         if res.intent == "OPEN_APPLICATION":
             app = res.slots.get("app_name", "")
             try:
@@ -723,6 +1037,37 @@ class IntentEngine:
             from core.proactive_intelligence import proactive_engine
             res.handled = True
             res.response_text = proactive_engine.toggle_dnd()
+            return res
+
+        if res.intent == "SKILLSUM_RESUME_EVAL":
+            from actions.skillsum_automation import skillsum_service
+            resume_path = str(res.slots.get("resume_path") or "").strip()
+            try:
+                report = skillsum_service.process_candidate_resume(resume_path)
+            except Exception:
+                res.handled = False
+                res.response_text = (
+                    f"{OWNER_ADDRESS}, SkillSum processing failed. "
+                    "No verified report was created."
+                )
+                return res
+
+            res.handled = bool(report.success)
+            if report.success:
+                score = report.evaluation.match_score_pct
+                score_label = (
+                    f"{score:.1f}% preliminary decision-support estimate"
+                    if score is not None
+                    else "not calculated because no skills were specified"
+                )
+                res.response_text = (
+                    f"{OWNER_ADDRESS}, candidate '{report.candidate.candidate_name}' ka resume evaluate ho gaya hai. "
+                    f"Match Score: {score_label}. Reports saved at '{report.markdown_path}' "
+                    f"and '{report.json_path}'."
+                )
+            else:
+                error = report.error_message or "Resume evaluation could not be completed."
+                res.response_text = f"{OWNER_ADDRESS}, resume processing failed: {error}"
             return res
 
         if res.intent == "PROJECT_SWITCH":

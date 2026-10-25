@@ -227,6 +227,17 @@ class SecurityManager:
             except Exception:
                 pass
 
+    def get_security_audit_log(self, max_lines: int = 10) -> str:
+        """Returns the most recent sanitized events from memory/security_audit.log."""
+        with self._audit_lock:
+            if not SECURITY_LOG.exists():
+                return "Security log is currently empty. All guards normal."
+            try:
+                lines = SECURITY_LOG.read_text(encoding="utf-8", errors="ignore").strip().splitlines()
+                return "\n".join(lines[-max_lines:]) if lines else "No events recorded."
+            except Exception as e:
+                return f"Error reading security log: {e}"
+
     # ── Session & Lock Controls ───────────────────────────────────────────────
 
     def is_locked(self) -> bool:

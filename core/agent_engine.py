@@ -306,6 +306,209 @@ class AgentEngine:
                 duration_seconds=round(time.monotonic() - start_t, 2)
             )
 
+    def execute_compound_browser_search(
+        self,
+        browser: str = "chrome",
+        platform: str = "youtube",
+        query: str = "",
+        lang: str = "hinglish"
+    ) -> AgentGoalResult:
+        """Autonomous Goal: Compound browser launch and target platform search with verification."""
+        start_t = time.monotonic()
+        from core.security import security_manager, OWNER_ADDRESS
+        from core.app_adapters import app_registry
+        from core.screen_engine import screen_engine
+        import urllib.parse
+        import socket
+
+        # 1. Parameter & Clarification check
+        clean_query = (query or "").strip()
+        platform_clean = (platform or "youtube").strip().lower()
+        browser_clean = (browser or "chrome").strip().lower()
+
+        if not clean_query:
+            clarify_msg = (
+                f"{OWNER_ADDRESS}, {platform_clean.capitalize()} par kya search karna hai?"
+                if lang in ("hindi", "hinglish") else
+                f"{OWNER_ADDRESS}, what would you like me to search for on {platform_clean.capitalize()}?"
+            )
+            return AgentGoalResult(
+                goal=f"Compound Browser Search: {browser} -> {platform}",
+                success=False,
+                plan_steps=[],
+                verification_passed=False,
+                summary_message=clarify_msg,
+                duration_seconds=round(time.monotonic() - start_t, 2)
+            )
+
+        # 2. Permissions check
+        allowed, reason = security_manager.check_permission("computer_control")
+        if not allowed:
+            deny_msg = (
+                f"{OWNER_ADDRESS}, computer control ki permission granted nahi hai: {reason}"
+                if lang in ("hindi", "hinglish") else
+                f"{OWNER_ADDRESS}, computer control permission denied: {reason}"
+            )
+            return AgentGoalResult(
+                goal=f"Compound Browser Search: {browser} -> {platform} ({clean_query})",
+                success=False,
+                plan_steps=[],
+                verification_passed=False,
+                summary_message=deny_msg,
+                duration_seconds=round(time.monotonic() - start_t, 2)
+            )
+
+        # 3. Network reachability check
+        net_ok = False
+        for host, port in [("www.youtube.com", 443), ("www.google.com", 443), ("8.8.8.8", 53)]:
+            try:
+                s = socket.create_connection((host, port), timeout=2.0)
+                s.close()
+                net_ok = True
+                break
+            except Exception:
+                pass
+
+        if not net_ok:
+            net_err_msg = (
+                f"{OWNER_ADDRESS}, active internet connection detect nahi hua. {platform_clean.capitalize()} search load karne ke liye internet zaroori hai."
+                if lang in ("hindi", "hinglish") else
+                f"{OWNER_ADDRESS}, no active internet connection detected. Internet is required for {platform_clean.capitalize()} search."
+            )
+            return AgentGoalResult(
+                goal=f"Compound Browser Search: {browser} -> {platform} ({clean_query})",
+                success=False,
+                plan_steps=[],
+                verification_passed=False,
+                summary_message=net_err_msg,
+                duration_seconds=round(time.monotonic() - start_t, 2)
+            )
+
+        # 4. Browser Adapter Discovery
+        adapter = app_registry.get_adapter(browser_clean)
+        if not adapter:
+            if "chrome" in browser_clean:
+                adapter = app_registry.get_adapter("chrome")
+            elif "edge" in browser_clean:
+                adapter = app_registry.get_adapter("edge")
+
+        bin_path = adapter.get_binary_path() if (adapter and hasattr(adapter, "get_binary_path")) else None
+        if not bin_path:
+            missing_msg = (
+                f"{OWNER_ADDRESS}, '{browser}' aapke system par installed nahi mila. Kripya browser install karein ya default browser use karein."
+                if lang in ("hindi", "hinglish") else
+                f"{OWNER_ADDRESS}, '{browser}' was not found on your system. Please install the browser or use the system default."
+            )
+            return AgentGoalResult(
+                goal=f"Compound Browser Search: {browser} -> {platform} ({clean_query})",
+                success=False,
+                plan_steps=[],
+                verification_passed=False,
+                summary_message=missing_msg,
+                duration_seconds=round(time.monotonic() - start_t, 2)
+            )
+
+        # 5. Construct URL & Plan steps
+        encoded_query = urllib.parse.quote_plus(clean_query)
+        if platform_clean in ("youtube", "yt"):
+            target_url = f"https://www.youtube.com/results?search_query={encoded_query}"
+            platform_display = "YouTube"
+        elif platform_clean in ("google", "web", "search"):
+            target_url = f"https://www.google.com/search?q={encoded_query}"
+            platform_display = "Google"
+        elif platform_clean == "github":
+            target_url = f"https://github.com/search?q={encoded_query}"
+            platform_display = "GitHub"
+        else:
+            target_url = f"https://www.youtube.com/results?search_query={encoded_query}"
+            platform_display = platform.capitalize()
+
+        steps = [
+            PlanStep(1, f"Check network reachability and validate {browser} installation", "validate_env", {}),
+            PlanStep(2, f"Construct verified search URL for '{clean_query}' on {platform_display}", "build_url", {"url": target_url}),
+            PlanStep(3, f"Launch {adapter.name} with target URL", "launch_browser", {"browser": adapter.name, "url": target_url}),
+            PlanStep(4, "Verify browser process and window activation", "verify_execution", {})
+        ]
+        task_rec = task_center.create_task(
+            f"Compound Browser Search: {adapter.name} -> {platform_display} ('{clean_query}')",
+            plan=[s.description for s in steps]
+        )
+
+        steps[0].status = "VERIFIED"
+        steps[1].status = "VERIFIED"
+
+        try:
+            # 6. Execute launch
+            launch_ok, launch_msg = adapter.launch(target_url)
+            if not launch_ok:
+                raise RuntimeError(launch_msg)
+            steps[2].status = "VERIFIED"
+            steps[2].result_details = launch_msg
+
+            # 7. Verification of process and window
+            time.sleep(1.2)
+            proc_ok, proc_detail = self.verify_app_running("chrome" if "chrome" in browser_clean else browser_clean)
+
+            win_titles = []
+            try:
+                open_wins = screen_engine.enumerate_open_windows()
+                win_titles = [w.title for w in open_wins if w.title]
+            except Exception:
+                pass
+
+            win_verified = any(
+                any(k in t.lower() for k in ("chrome", "youtube", "google", clean_query.lower()))
+                for t in win_titles
+            )
+
+            is_verified = proc_ok or win_verified
+            steps[3].status = "VERIFIED" if is_verified else "FAILED"
+            steps[3].result_details = f"Process check: {proc_detail} | Window check: {len(win_titles)} active windows observed."
+
+            timeline.record(
+                "AGENT",
+                f"{platform_display} Search Launched",
+                f"Browser: {adapter.name} | Query: {clean_query} | Verified: {is_verified}",
+                status="SUCCESS" if is_verified else "PARTIAL"
+            )
+            task_center.complete_task(
+                task_rec.task_id,
+                result=f"Opened {adapter.name} with {platform_display} search for '{clean_query}'",
+                verification="Verified" if is_verified else "Unverified"
+            )
+
+            if lang == "hindi":
+                summary = f"{OWNER_ADDRESS}, {adapter.name} खोलकर {platform_display} पर '{clean_query}' सर्च कर दिया गया है।"
+            elif lang == "hinglish":
+                summary = f"{OWNER_ADDRESS}, {adapter.name} open karke {platform_display} par '{clean_query}' search kar diya hai."
+            else:
+                summary = f"{OWNER_ADDRESS}, opened {adapter.name} and searched for '{clean_query}' on {platform_display}."
+
+            return AgentGoalResult(
+                goal=f"Compound Browser Search: {adapter.name} -> {platform_display} ('{clean_query}')",
+                success=True,
+                plan_steps=steps,
+                verification_passed=is_verified,
+                summary_message=summary,
+                duration_seconds=round(time.monotonic() - start_t, 2)
+            )
+
+        except Exception as e:
+            task_center.fail_task(task_rec.task_id, str(e))
+            fail_msg = (
+                f"{OWNER_ADDRESS}, {adapter.name} mein search open nahi ho saka: {e}"
+                if lang in ("hindi", "hinglish") else
+                f"{OWNER_ADDRESS}, could not perform search in {adapter.name}: {e}"
+            )
+            return AgentGoalResult(
+                goal=f"Compound Browser Search: {browser} -> {platform} ('{clean_query}')",
+                success=False,
+                plan_steps=steps,
+                verification_passed=False,
+                summary_message=fail_msg,
+                duration_seconds=round(time.monotonic() - start_t, 2)
+            )
+
     def execute_system_audit_goal(self) -> AgentGoalResult:
         """Autonomous Goal: Complete system health & security audit."""
         start_t = time.monotonic()

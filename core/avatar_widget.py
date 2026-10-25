@@ -52,7 +52,15 @@ class Avatar3DViewport(QWidget):
         self.audio_level: float = 0.0
         self.target_audio_level: float = 0.0
 
-        # Load 3D geometry
+        # Load Stylized 3D Character Asset
+        self._portrait_path = BASE_DIR / "assets" / "avatar" / "alex_avatar_front.png"
+        self._portrait_pixmap = None
+        if self._portrait_path.exists():
+            pm = QPixmap(str(self._portrait_path))
+            if not pm.isNull():
+                self._portrait_pixmap = pm
+
+        # Load 3D geometry (for mathematical rigging and mesh fallback)
         self._mesh = get_head_mesh()
         self._base_verts = self._mesh["verts"].copy().astype(np.float32)   # [N, 3]
         self._base_norms = self._mesh["normals"].copy().astype(np.float32) # [N, 3]
@@ -189,8 +197,8 @@ class Avatar3DViewport(QWidget):
         self._brow += (self._target_brow - self._brow) * 0.1
 
         # Smooth mouth articulation for speech
-        if self.speaking or self.audio_level > 0.05:
-            target_jaw = min(1.0, self.audio_level * 1.7 + math.sin(self._time * 20.0) * 0.08)
+        if self.speaking or self.audio_level > 0.04:
+            target_jaw = min(1.0, self.audio_level * 1.8 + math.sin(self._time * 22.0) * 0.08)
         else:
             target_jaw = 0.0
         self._jaw_open += (target_jaw - self._jaw_open) * 0.4
@@ -227,7 +235,7 @@ class Avatar3DViewport(QWidget):
         W, H = self.width(), self.height()
         cx, cy = W / 2.0, H / 2.0
 
-        # Background gradient (Deep Dark Navy)
+        # Background gradient (Deep Dark Space Navy)
         bg = QRadialGradient(cx, cy * 0.85, max(W, H) * 0.75)
         bg.setColorAt(0.0, QColor(8, 18, 38))
         bg.setColorAt(0.65, QColor(4, 9, 20))
@@ -235,146 +243,173 @@ class Avatar3DViewport(QWidget):
         p.fillRect(self.rect(), QBrush(bg))
 
         # ── Holographic Status Halo & Particles ──
-        self._draw_ambient_fx(p, cx, cy, min(W, H) * 0.42)
+        self._draw_ambient_fx(p, cx, cy, min(W, H) * 0.44)
 
-        # ── 3D Mesh Deformation (Blendshapes + Pose) ──
-        verts = self._base_verts.copy()
-        norms = self._base_norms.copy()
+        if self._portrait_pixmap is not None:
+            # ── High-Fidelity Stylized 3D Digital Human Rendering ──
+            p.save()
 
-        # 1. Jaw Open
-        if self._jaw_open > 0.01:
-            jw = self._jaw_weight * self._jaw_open
-            verts[:, 1] -= jw * 0.22
-            verts[:, 2] -= jw * 0.05
+            # Breathing vertical displacement and micro-sway
+            breath_y = math.sin(self._time * 1.8) * 3.5 if self.state != "SLEEPING" else 0.0
+            shift_x = self._rot_y * 28.0
+            shift_y = -self._rot_x * 20.0 + breath_y
 
-        # 2. Smile
-        if self._smile > 0.01:
-            for idx in LANDMARKS.get("lip_out", []):
-                if idx < self._num_verts:
-                    vx = verts[idx, 0]
-                    corner_w = abs(vx) / 0.35
-                    verts[idx, 1] += self._smile * 0.07 * corner_w
+            # Attentive tilt during LISTENING / THINKING
+            tilt_angle = 0.0
+            if self.state == "LISTENING":
+                tilt_angle = 2.5 + math.sin(self._time * 2.0) * 0.8
+            elif self.state == "THINKING":
+                tilt_angle = -2.0 + math.sin(self._time * 1.5) * 1.0
+            elif self.state != "SLEEPING":
+                tilt_angle = self._rot_y * 8.0
 
-        # 3. Blinking
-        if self._blink > 0.01:
-            for idx in LANDMARKS.get("eye_l", []) + LANDMARKS.get("eye_r", []):
-                if idx < self._num_verts and verts[idx, 1] > 0.0:
-                    verts[idx, 1] -= self._blink * 0.08
+            p.translate(cx + shift_x, cy + shift_y)
+            p.rotate(tilt_angle)
 
-        # 4. Brow Raise
-        if self._brow > 0.01:
-            for idx in LANDMARKS.get("brow_l", []) + LANDMARKS.get("brow_r", []):
-                if idx < self._num_verts:
-                    verts[idx, 1] += self._brow * 0.07
+            # Subtle breathing scale
+            b_scale = 1.0 + math.sin(self._time * 1.8) * 0.012 if self.state != "SLEEPING" else 0.98
+            target_h = int(H * 0.92 * b_scale)
+            scaled_pm = self._portrait_pixmap.scaledToHeight(target_h, Qt.TransformationMode.SmoothTransformation)
 
-        # ── 3D Rotation Matrix ──
-        rx, ry = self._rot_x, self._rot_y
-        cos_y, sin_y = math.cos(ry), math.sin(ry)
-        cos_x, sin_x = math.cos(rx), math.sin(rx)
+            pw, ph = scaled_pm.width(), scaled_pm.height()
+            draw_x = -pw / 2.0
+            draw_y = -ph / 2.0 + 8.0
 
-        # Rotate around Y then X
-        x = verts[:, 0] * cos_y + verts[:, 2] * sin_y
-        z = -verts[:, 0] * sin_y + verts[:, 2] * cos_y
-        y = verts[:, 1] * cos_x - z * sin_x
-        z = verts[:, 1] * sin_x + z * cos_x
+            # Draw base portrait
+            if self.state == "SLEEPING":
+                p.setOpacity(0.55)
+            else:
+                p.setOpacity(1.0)
+            p.drawPixmap(int(draw_x), int(draw_y), scaled_pm)
 
-        # Rotate normals
-        nx = norms[:, 0] * cos_y + norms[:, 2] * sin_y
-        nz = -norms[:, 0] * sin_y + norms[:, 2] * cos_y
-        ny = norms[:, 1] * cos_x - nz * sin_x
-        nz = norms[:, 1] * sin_x + nz * cos_x
+            # Real-time Speech Articulation (Jaw Open)
+            if self._jaw_open > 0.04 and self.state != "SLEEPING":
+                mouth_cx = 0.0
+                mouth_cy = draw_y + ph * 0.485
+                mw = pw * 0.14
+                mh = (ph * 0.05) * min(1.0, self._jaw_open * 1.4)
 
-        # ── Perspective Projection ──
-        scale = min(W, H) * 0.42
-        w_cam = self._cam_dist - z
-        w_cam = np.maximum(w_cam, 0.4)
-        k = (self._cam_dist / w_cam) * scale
+                # Dark interior of mouth
+                p.setBrush(QBrush(QColor(42, 18, 22, 230)))
+                p.setPen(QPen(QColor(165, 85, 75, 180), 1.0))
+                p.drawEllipse(QRectF(mouth_cx - mw / 2.0, mouth_cy - mh / 2.0, mw, mh))
 
-        # Subtle breathing vertical displacement
-        breath_y = math.sin(self._time * 1.8) * 4.0 if self.state != "SLEEPING" else 0.0
-        head_cy = cy + breath_y
+                # Lower lip edge displacement
+                p.setPen(QPen(QColor(185, 115, 105, 200), 1.5))
+                p.drawArc(QRectF(mouth_cx - mw * 0.45, mouth_cy + mh * 0.1, mw * 0.9, mh * 0.8), 0, -180 * 16)
 
-        xs = cx + x * k
-        ys = head_cy - y * k
+            # Natural Eye Blinking Overlay
+            if (self._blink > 0.06 or self.state == "SLEEPING") and self.state != "SPEAKING":
+                blink_amt = 1.0 if self.state == "SLEEPING" else self._blink
+                eye_cy = draw_y + ph * 0.388
+                eye_spacing = pw * 0.115
+                eye_w = pw * 0.10
+                eye_h = ph * 0.035 * blink_amt
 
-        # ── Multi-Light Studio PBR-Style Shading ──
-        # Lights:
-        # Key light: upper-right, warm white
-        # Fill light: upper-left, soft cool cyan
-        # Rim light: behind, electric cyan (#00e5ff)
-        l_key = np.array([0.5, 0.7, 0.5])
-        l_key /= np.linalg.norm(l_key)
+                p.setBrush(QBrush(QColor(204, 154, 136, int(240 * blink_amt))))
+                p.setPen(QPen(QColor(42, 32, 35, int(220 * blink_amt)), 1.4))
+                # Left eye lid
+                p.drawEllipse(QRectF(-eye_spacing - eye_w / 2.0, eye_cy - eye_h / 2.0, eye_w, eye_h))
+                # Right eye lid
+                p.drawEllipse(QRectF(eye_spacing - eye_w / 2.0, eye_cy - eye_h / 2.0, eye_w, eye_h))
 
-        l_fill = np.array([-0.6, 0.3, 0.4])
-        l_fill /= np.linalg.norm(l_fill)
+            # Friendly smile crease highlight on SUCCESS
+            if self._smile > 0.3:
+                smile_w = pw * 0.15
+                smile_y = draw_y + ph * 0.49
+                p.setPen(QPen(QColor(215, 130, 115, int(180 * self._smile)), 1.5))
+                p.drawArc(QRectF(-smile_w / 2.0, smile_y - 4, smile_w, 10), 0, -180 * 16)
 
-        l_rim = np.array([0.0, 0.6, -0.8])
-        l_rim /= np.linalg.norm(l_rim)
+            p.restore()
+        else:
+            # ── Fallback 3D Polygon Shaded Mesh ──
+            verts = self._base_verts.copy()
+            norms = self._base_norms.copy()
 
-        # Dot products with face normals
-        fa, fb, fc = self._faces[:, 0], self._faces[:, 1], self._faces[:, 2]
-        
-        # Facet normal
-        v0 = np.column_stack([x[fa], y[fa], z[fa]])
-        v1 = np.column_stack([x[fb], y[fb], z[fb]])
-        v2 = np.column_stack([x[fc], y[fc], z[fc]])
-        fn = np.cross(v1 - v0, v2 - v0)
-        fn_mag = np.linalg.norm(fn, axis=1, keepdims=True)
-        fn /= np.maximum(fn_mag, 1e-9)
+            if self._jaw_open > 0.01:
+                jw = self._jaw_weight * self._jaw_open
+                verts[:, 1] -= jw * 0.22
+                verts[:, 2] -= jw * 0.05
 
-        # Backface culling
-        visible = fn[:, 2] > 0.02
-        if not np.any(visible):
-            return
+            if self._smile > 0.01:
+                for idx in LANDMARKS.get("lip_out", []):
+                    if idx < self._num_verts:
+                        vx = verts[idx, 0]
+                        corner_w = abs(vx) / 0.35
+                        verts[idx, 1] += self._smile * 0.07 * corner_w
 
-        vis_indices = np.flatnonzero(visible)
-        
-        # Sort back to front (Painter's algorithm)
-        z_depth = (z[fa[vis_indices]] + z[fb[vis_indices]] + z[fc[vis_indices]]) / 3.0
-        sorted_order = vis_indices[np.argsort(z_depth)]
+            if self._blink > 0.01:
+                for idx in LANDMARKS.get("eye_l", []) + LANDMARKS.get("eye_r", []):
+                    if idx < self._num_verts and verts[idx, 1] > 0.0:
+                        verts[idx, 1] -= self._blink * 0.08
 
-        # Render shaded polygons
-        dim = 0.4 if self.state == "SLEEPING" else 1.0
+            rx, ry = self._rot_x, self._rot_y
+            cos_y, sin_y = math.cos(ry), math.sin(ry)
+            cos_x, sin_x = math.cos(rx), math.sin(rx)
 
-        for idx in sorted_order:
-            ia, ib, ic = fa[idx], fb[idx], fc[idx]
-            norm = fn[idx]
+            x = verts[:, 0] * cos_y + verts[:, 2] * sin_y
+            z = -verts[:, 0] * sin_y + verts[:, 2] * cos_y
+            y = verts[:, 1] * cos_x - z * sin_x
+            z = verts[:, 1] * sin_x + z * cos_x
 
-            # Diffuse key + fill + rim terms
-            diff_key = max(0.0, float(np.dot(norm, l_key)))
-            diff_fill = max(0.0, float(np.dot(norm, l_fill)))
-            diff_rim = max(0.0, float(np.dot(norm, l_rim)))
+            scale = min(W, H) * 0.42
+            w_cam = np.maximum(self._cam_dist - z, 0.4)
+            k = (self._cam_dist / w_cam) * scale
 
-            # Base skin tone matching Aditya Rajak (warm natural tone)
-            base_r, base_g, base_b = 196, 148, 120
+            breath_y = math.sin(self._time * 1.8) * 4.0 if self.state != "SLEEPING" else 0.0
+            head_cy = cy + breath_y
 
-            # Lighting formula
-            intensity = 0.25 + diff_key * 0.55 + diff_fill * 0.20
-            r_val = int(min(255, (base_r * intensity + diff_rim * 40) * dim))
-            g_val = int(min(255, (base_g * intensity + diff_rim * 70) * dim))
-            b_val = int(min(255, (base_b * intensity + diff_rim * 90) * dim))
+            xs = cx + x * k
+            ys = head_cy - y * k
 
-            poly = QPolygonF([
-                QPointF(xs[ia], ys[ia]),
-                QPointF(xs[ib], ys[ib]),
-                QPointF(xs[ic], ys[ic]),
-            ])
+            l_key = np.array([0.5, 0.7, 0.5])
+            l_key /= np.linalg.norm(l_key)
+            l_fill = np.array([-0.6, 0.3, 0.4])
+            l_fill /= np.linalg.norm(l_fill)
+            l_rim = np.array([0.0, 0.6, -0.8])
+            l_rim /= np.linalg.norm(l_rim)
 
-            p.setBrush(QBrush(QColor(r_val, g_val, b_val)))
-            p.setPen(QPen(QColor(r_val // 2, g_val // 2, b_val // 2, 40), 0.5))
-            p.drawPolygon(poly)
+            fa, fb, fc = self._faces[:, 0], self._faces[:, 1], self._faces[:, 2]
+            v0 = np.column_stack([x[fa], y[fa], z[fa]])
+            v1 = np.column_stack([x[fb], y[fb], z[fb]])
+            v2 = np.column_stack([x[fc], y[fc], z[fc]])
+            fn = np.cross(v1 - v0, v2 - v0)
+            fn /= np.maximum(np.linalg.norm(fn, axis=1, keepdims=True), 1e-9)
 
-        # ── Draw Facial Feature Highlights (Eyes, Lips, Eyebrows) ──
-        self._draw_facial_accents(p, xs, ys, dim)
+            visible = fn[:, 2] > 0.02
+            if np.any(visible):
+                vis_indices = np.flatnonzero(visible)
+                z_depth = (z[fa[vis_indices]] + z[fb[vis_indices]] + z[fc[vis_indices]]) / 3.0
+                sorted_order = vis_indices[np.argsort(z_depth)]
+                dim = 0.4 if self.state == "SLEEPING" else 1.0
 
-        # ── Overlay Status Tag ──
+                for idx in sorted_order:
+                    ia, ib, ic = fa[idx], fb[idx], fc[idx]
+                    norm = fn[idx]
+                    diff_key = max(0.0, float(np.dot(norm, l_key)))
+                    diff_fill = max(0.0, float(np.dot(norm, l_fill)))
+                    diff_rim = max(0.0, float(np.dot(norm, l_rim)))
+                    base_r, base_g, base_b = 196, 148, 120
+                    intensity = 0.25 + diff_key * 0.55 + diff_fill * 0.20
+                    r_val = int(min(255, (base_r * intensity + diff_rim * 40) * dim))
+                    g_val = int(min(255, (base_g * intensity + diff_rim * 70) * dim))
+                    b_val = int(min(255, (base_b * intensity + diff_rim * 90) * dim))
+
+                    poly = QPolygonF([QPointF(xs[ia], ys[ia]), QPointF(xs[ib], ys[ib]), QPointF(xs[ic], ys[ic])])
+                    p.setBrush(QBrush(QColor(r_val, g_val, b_val)))
+                    p.setPen(QPen(QColor(r_val // 2, g_val // 2, b_val // 2, 40), 0.5))
+                    p.drawPolygon(poly)
+
+                self._draw_facial_accents(p, xs, ys, dim)
+
+        # ── Overlay Status Tag & Controls ──
         self._draw_status_tag(p, W, H)
 
     def _draw_ambient_fx(self, p: QPainter, cx: float, cy: float, rad: float):
         """Draws reactive halo, audio aura, and thinking particles."""
         amp = self.audio_level
         halo_rad = rad * (1.1 + amp * 0.15)
-        
+
         # Halo colour based on state
         c_map = {
             "IDLE": QColor(0, 229, 255, 25),
@@ -410,8 +445,7 @@ class Avatar3DViewport(QWidget):
             p.restore()
 
     def _draw_facial_accents(self, p: QPainter, xs, ys, dim: float):
-        """Draws expressive accents for lips, eyes, and eyebrows."""
-        # Eyebrows
+        """Draws expressive accents for lips, eyes, and eyebrows in mesh fallback mode."""
         p.setPen(QPen(QColor(int(28 * dim), int(22 * dim), int(24 * dim), 210), 2.2))
         for brow_key in ("brow_l", "brow_r"):
             pts = LANDMARKS.get(brow_key, [])
@@ -420,14 +454,12 @@ class Avatar3DViewport(QWidget):
                 if i0 < len(xs) and i1 < len(xs):
                     p.drawLine(QPointF(xs[i0], ys[i0]), QPointF(xs[i1], ys[i1]))
 
-        # Eyes (Dark brown iris, reflective highlight)
         p.setPen(QPen(QColor(int(220 * dim), int(230 * dim), int(240 * dim), 160), 1.2))
         for eye_key in ("eye_l", "eye_r"):
             pts = LANDMARKS.get(eye_key, [])
             poly = QPolygonF([QPointF(xs[i], ys[i]) for i in pts if i < len(xs)])
             p.drawPolyline(poly)
 
-        # Lips
         p.setPen(QPen(QColor(int(175 * dim), int(105 * dim), int(95 * dim), 190), 1.5))
         for lip_key in ("lip_out", "lip_in"):
             pts = LANDMARKS.get(lip_key, [])
@@ -436,13 +468,11 @@ class Avatar3DViewport(QWidget):
 
     def _draw_status_tag(self, p: QPainter, W: int, H: int):
         """Draws top status badge and bottom branding."""
-        # Top status badge
-        p.setPen(Qt.PenStyle.NoPen)
         badge_rect = QRectF(12, 12, 130, 24)
+        p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QBrush(QColor(3, 10, 24, 180)))
         p.drawRoundedRect(badge_rect, 12, 12)
 
-        # Dot
         c_dot = {
             "IDLE": QColor(0, 229, 255),
             "LISTENING": QColor(16, 185, 129),
@@ -456,12 +486,10 @@ class Avatar3DViewport(QWidget):
         p.setBrush(QBrush(c_dot))
         p.drawEllipse(QRectF(22, 19, 8, 8))
 
-        # Status text
         p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
         p.setPen(QColor(226, 232, 240))
         p.drawText(QRectF(36, 12, 100, 24), Qt.AlignmentFlag.AlignVCenter, self.state)
 
-        # Bottom label
         p.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
         p.setPen(QColor(100, 116, 139, 170))
         p.drawText(QRectF(12, H - 24, W - 24, 16), Qt.AlignmentFlag.AlignLeft, "3D DIGITAL HUMAN · ADITYA")

@@ -56,18 +56,11 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QTextEdit, QVBoxLayout, QWidget, QProgressBar,
 )
 
-try:
-    from core.avatar import HoloAvatar
-except Exception:      # pragma: no cover — HUD must never die over cosmetics
-    HoloAvatar = None
-try:
-    from core.avatar_widget import AvatarContainerWidget
-    from core.avatar_bridge import avatar_bridge
-    from core.avatar_service import avatar_server
-except Exception as _e:
-    AvatarContainerWidget = None
-    avatar_bridge = None
-    avatar_server = None
+# 3D Digital Human Avatar and HoloAvatar completely removed as requested
+HoloAvatar = None
+AvatarContainerWidget = None
+avatar_bridge = None
+avatar_server = None
 
 
 def _base_dir() -> Path:
@@ -424,21 +417,11 @@ class HudCanvas(QWidget):
 
         # The holographic head that fills the HUD. If it could not be imported
         # we fall back to the old glowing core so the panel is never empty.
+        # Central HUD visualizer: Old wireframe head retired;
+        # HUD canvas renders the audio-reactive Quantum Core Visualizer exclusively,
+        # while the dedicated 3D Digital Human Avatar renders in the right panel.
         self._avatar = None
-        if HoloAvatar is not None:
-            try:
-                self._avatar = HoloAvatar()
-            except Exception:
-                self._avatar = None
-
-        # Which centrepiece to draw. Read once here and changed live by the
-        # settings toggle; the avatar object is kept either way so switching
-        # back is instant and costs no reload.
-        try:
-            from memory.config_manager import get_hud_style
-            self.hud_style = get_hud_style()
-        except Exception:
-            self.hud_style = "face"
+        self.hud_style = "core"
         self._core_phase = 0.0
 
         self._tick       = 0
@@ -870,36 +853,12 @@ class HudCanvas(QWidget):
         # Sized to the band between the top of the canvas and the status line,
         # capped by width, so it fills the HUD at any window size — including
         # fullscreen — without ever colliding with the status text below.
+        # Audio-reactive Quantum Core Visualizer (The central HUD centerpiece)
         _sy_status = cy + fw * 0.40
-        if self._avatar is not None and self.hud_style == "face":
-            _band_t = 12.0
-            _band_h = max(60.0, _sy_status - 12.0 - _band_t)
-            _r_head = min(fw * 0.355, _band_h / (self._avatar.SPAN + 0.08))
-            _head_cy = _band_t + (_band_h - self._avatar.SPAN * _r_head) / 2.0 + _r_head
-
-            if self.muted:
-                _main = _acc = qcol(C.MUTED_C)
-            else:
-                _main = qcol(C.PRI)
-                if self.speaking:
-                    _acc = qcol(C.ACC)
-                elif self.state in ("THINKING", "PROCESSING"):
-                    _acc = qcol(C.ACC2)
-                elif self.state == "LISTENING":
-                    _acc = qcol(C.GREEN)
-                else:
-                    _acc = qcol(C.PRI)
-            self._avatar.paint(p, cx, _head_cy, _r_head, _main, _acc, qcol(C.BG))
-
-        # reactor core — the other centrepiece, and the fallback if the head
-        # could not be built. There is no third path: the old face.png branch
-        # was unreachable (no such file ships) and the bare orb it fell through
-        # to is what this replaces.
-        else:
-            _band_t = 12.0
-            _band_h = max(60.0, _sy_status - 12.0 - _band_t)
-            _r = min(W * 0.46, _band_h / 2.0)
-            self._paint_core(p, cx, _band_t + _band_h / 2.0, _r, W, _band_h)
+        _band_t = 12.0
+        _band_h = max(60.0, _sy_status - 12.0 - _band_t)
+        _r = min(W * 0.46, _band_h / 2.0)
+        self._paint_core(p, cx, _band_t + _band_h / 2.0, _r, W, _band_h)
 
         # ALEX HUD Top Brand & Owner Tag
         p.setFont(QFont("Courier New", 9, QFont.Weight.Bold))
@@ -3063,7 +3022,6 @@ class MainWindow(QMainWindow):
         self._left_panel = self._build_left_sidebar()
         body.addWidget(self._left_panel, stretch=0)
 
-        # Internal fallback HUD
         self.hud = HudCanvas(face_path, _display)
         self.hud.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._content_panel = self._build_content_panel()
@@ -3226,6 +3184,14 @@ class MainWindow(QMainWindow):
         self._hud_cam_stack.addWidget(_cam_cont)
         self._hud_cam_stack.addWidget(self._video_cont)
 
+        center_container = QWidget()
+        center_layout = QVBoxLayout(center_container)
+        center_layout.setContentsMargins(0, 0, 0, 0)
+        center_layout.setSpacing(0)
+
+        self._task_card = self._build_task_status_card()
+        center_layout.addWidget(self._task_card, stretch=0)
+
         self._center_split = QSplitter(Qt.Orientation.Vertical)
         self._center_split.setStyleSheet(f"""
             QSplitter::handle {{
@@ -3238,11 +3204,19 @@ class MainWindow(QMainWindow):
         """)
         self._center_split.addWidget(self._hud_cam_stack)
         self._center_split.addWidget(self._content_panel)
+        self._log = LogWidget()
+        self._center_split.addWidget(self._log)
         self._center_split.addWidget(self._quiz_panel)
         self._center_split.setStretchFactor(0, 3)
         self._center_split.setStretchFactor(1, 1)
+        self._center_split.setStretchFactor(2, 2)
         self._center_split.setCollapsible(0, False)
-        body.addWidget(self._center_split, stretch=5)
+        center_layout.addWidget(self._center_split, stretch=1)
+
+        self._input_bar = self._build_center_input_bar()
+        center_layout.addWidget(self._input_bar, stretch=0)
+
+        body.addWidget(center_container, stretch=5)
 
         self._right_panel = self._build_right_panel()
         body.addWidget(self._right_panel, stretch=0)
@@ -3272,6 +3246,7 @@ class MainWindow(QMainWindow):
         self._log_sig.connect(self._log.append_log)
         self._state_sig.connect(self._apply_state)
         self._content_sig.connect(self._show_content)
+        self.show_content = self._show_content
         self._reconfig_sig.connect(self._show_setup)
         self._camera_sig.connect(self._show_camera_frame)
         self._confirm_sig.connect(self._show_confirm_banner)
@@ -4006,34 +3981,27 @@ class MainWindow(QMainWindow):
         lay = QHBoxLayout(w)
         lay.setContentsMargins(16, 0, 16, 0)
         lay.setSpacing(10)
-
         brand_col = QHBoxLayout()
         brand_col.setSpacing(6)
         brand_logo = QLabel('ALEX')
         brand_logo.setFont(QFont('Segoe UI', 14, QFont.Weight.Bold))
         brand_logo.setStyleSheet('color: #00e5ff; background: transparent; letter-spacing: 2px;')
         brand_col.addWidget(brand_logo)
-
         ver_badge = QLabel(f'v{APP_VERSION}')
         ver_badge.setFont(QFont('Segoe UI', 7, QFont.Weight.Bold))
         ver_badge.setStyleSheet('color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 4px; padding: 2px 6px;')
         brand_col.addWidget(ver_badge)
-
         owner_tag = QLabel('ADITYA RAJAK EDITION')
         owner_tag.setFont(QFont('Segoe UI', 7, QFont.Weight.Bold))
         owner_tag.setStyleSheet('color: #64748b; background: transparent; letter-spacing: 1px;')
         brand_col.addWidget(owner_tag)
         lay.addLayout(brand_col)
-
         lay.addStretch()
-
         self._hdr_status_lbl = QLabel('● IDLE')
         self._hdr_status_lbl.setFont(QFont('Segoe UI', 9, QFont.Weight.Bold))
         self._hdr_status_lbl.setStyleSheet('color: #00e5ff; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(0, 229, 255, 0.25); border-radius: 12px; padding: 4px 14px;')
         lay.addWidget(self._hdr_status_lbl)
-
         lay.addStretch()
-
         self._drawer_btn = QPushButton('⚙')
         self._drawer_btn.setFixedSize(28, 28)
         self._drawer_btn.setFont(QFont('Segoe UI', 11))
@@ -4043,7 +4011,6 @@ class MainWindow(QMainWindow):
         self._drawer_btn.setCheckable(True)
         self._drawer_btn.clicked.connect(self._toggle_drawer)
         lay.addWidget(self._drawer_btn)
-
         self._ctrl_btn = QPushButton('🎛')
         self._ctrl_btn.setFixedSize(28, 28)
         self._ctrl_btn.setFont(QFont('Segoe UI', 11))
@@ -4053,7 +4020,6 @@ class MainWindow(QMainWindow):
         self._ctrl_btn.setCheckable(True)
         self._ctrl_btn.clicked.connect(self._toggle_controls)
         lay.addWidget(self._ctrl_btn)
-
         self._lock_btn = QPushButton('🔓')
         self._lock_btn.setFixedSize(28, 28)
         self._lock_btn.setFont(QFont('Segoe UI', 11))
@@ -4062,7 +4028,6 @@ class MainWindow(QMainWindow):
         self._lock_btn.setStyleSheet(self._drawer_btn.styleSheet())
         self._lock_btn.clicked.connect(self._toggle_security_lock)
         lay.addWidget(self._lock_btn)
-
         self._emergency_btn = QPushButton('🛑')
         self._emergency_btn.setFixedSize(28, 28)
         self._emergency_btn.setFont(QFont('Segoe UI', 11))
@@ -4071,7 +4036,6 @@ class MainWindow(QMainWindow):
         self._emergency_btn.setStyleSheet(self._drawer_btn.styleSheet())
         self._emergency_btn.clicked.connect(self._do_emergency_stop)
         lay.addWidget(self._emergency_btn)
-
         clock_box = QVBoxLayout()
         clock_box.setSpacing(1)
         self._clock_lbl = QLabel('00:00:00')
@@ -4085,14 +4049,13 @@ class MainWindow(QMainWindow):
         self._date_lbl.setAlignment(Qt.AlignmentFlag.AlignRight)
         clock_box.addWidget(self._date_lbl)
         lay.addLayout(clock_box)
-
         self._title_lbl = brand_logo
         self._sub_lbl = owner_tag
         return w
 
     def _tick_clock(self):
-        self._clock_lbl.setText(time.strftime("%H:%M:%S"))
-        self._date_lbl.setText(time.strftime("%a %d %b %Y"))
+        self._clock_lbl.setText(time.strftime('%H:%M:%S'))
+        self._date_lbl.setText(time.strftime('%a %d %b %Y'))
 
     def _build_left_sidebar(self) -> QWidget:
         w = QWidget()
@@ -4101,7 +4064,6 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(6, 12, 6, 10)
         lay.setSpacing(4)
-
         brand_box = QHBoxLayout()
         brand_box.setContentsMargins(8, 0, 8, 8)
         brand_lbl = QLabel('◈ ALEX CORE')
@@ -4109,7 +4071,6 @@ class MainWindow(QMainWindow):
         brand_lbl.setStyleSheet('color: #00e5ff; background: transparent; letter-spacing: 1.5px;')
         brand_box.addWidget(brand_lbl)
         lay.addLayout(brand_box)
-
         self._nav_buttons = {}
         nav_items = [
             ('home',      '🏠  Home',             'Overview & Active Workspace', self._nav_home),
@@ -4123,7 +4084,6 @@ class MainWindow(QMainWindow):
             ('memory',    '🧠  Memory',           'Knowledge Brain & Profile',   self._nav_memory),
             ('settings',  '⚙  Settings',         'Configuration Drawer',        self._nav_settings),
         ]
-
         for key, text, tip, handler in nav_items:
             btn = QPushButton(text)
             btn.setFixedHeight(34)
@@ -4135,10 +4095,8 @@ class MainWindow(QMainWindow):
             btn.clicked.connect(handler)
             self._nav_buttons[key] = btn
             lay.addWidget(btn)
-
         self._nav_buttons['home'].setChecked(True)
         lay.addStretch()
-
         id_card = QFrame()
         id_card.setStyleSheet('QFrame { background: rgba(15, 23, 42, 0.6); border: 1px solid #0f233d; border-radius: 6px; padding: 4px; }')
         id_lay = QVBoxLayout(id_card)
@@ -4168,7 +4126,7 @@ class MainWindow(QMainWindow):
 
     def _nav_voice(self):
         self._set_active_nav('voice')
-        self._show_audio_devices()
+        self._open_audio_devices()
 
     def _nav_tasks(self):
         self._set_active_nav('tasks')
@@ -4177,14 +4135,25 @@ class MainWindow(QMainWindow):
             if p.exists():
                 d = json.loads(p.read_text(encoding='utf-8'))
                 tasks = d.get('tasks', [])
-                lines_t = [f"◈ AUTONOMOUS TASK CENTER (Autonomy: {d.get('autonomy_level', 'supervised').upper()})"]
-                for t in tasks[:8]:
-                    lines_t.append(f"  • [{t.get('status', 'PENDING').upper()}] {t.get('title', 'Task')}")
-                self.show_content('TASK CENTER', '\n'.join(lines_t))
+                autonomy = d.get('autonomy_level', 'NORMAL').upper()
+                lines_t = [f"◈ AUTONOMOUS TASK CENTER (Autonomy: {autonomy})", ""]
+                for t in tasks[:10]:
+                    status = t.get('status', 'PENDING').upper()
+                    goal = t.get('goal') or t.get('title', 'Task')
+                    cur_step = t.get('current_step', 0)
+                    tot_steps = t.get('total_steps', 0)
+                    files = t.get('generated_files', [])
+                    line = f"  • [{status}] {goal}"
+                    if tot_steps > 0:
+                        line += f" ({cur_step}/{tot_steps} steps)"
+                    if files:
+                        line += f"\n      Deliverable: {files[0]}"
+                    lines_t.append(line)
+                self._show_content('TASK CENTER', '\n'.join(lines_t))
             else:
-                self.show_content('TASK CENTER', 'No pending autonomous tasks in queue.\nALEX is standing by.')
+                self._show_content('TASK CENTER', 'No pending autonomous tasks in queue.\nALEX is standing by.')
         except Exception as e:
-            self.show_content('TASK CENTER', f'Task system standing by. ({e})')
+            self._show_content('TASK CENTER', f'Task system standing by. ({e})')
 
     def _nav_projects(self):
         self._set_active_nav('projects')
@@ -4197,15 +4166,15 @@ class MainWindow(QMainWindow):
                 for k, v in projs.items():
                     desc = v.get('description', '') if isinstance(v, dict) else str(v)
                     lines_p.append(f'  ▸ {k}: {desc}')
-                self.show_content('ACTIVE PROJECTS', '\n'.join(lines_p))
+                self._show_content('ACTIVE PROJECTS', '\n'.join(lines_p))
             else:
-                self.show_content('ACTIVE PROJECTS', 'Aditya\'s Project Workspace: portfolio-aditya, alex, skillsum.')
+                self._show_content('ACTIVE PROJECTS', 'Aditya\'s Project Workspace: portfolio-aditya, alex, skillsum.')
         except Exception as e:
-            self.show_content('ACTIVE PROJECTS', f'Projects loaded. ({e})')
+            self._show_content('ACTIVE PROJECTS', f'Projects loaded. ({e})')
 
     def _nav_files(self):
         self._set_active_nav('files')
-        self.show_content('FILE EXPLORER', 'File drop zone ready on the right panel.\nDrop documents, images, code files, or presentations to inspect with ALEX.')
+        self._show_content('FILE EXPLORER', 'File drop zone ready on the right panel.\nDrop documents, images, code files, or presentations to inspect with ALEX.')
 
     def _nav_tools(self):
         self._set_active_nav('tools')
@@ -4213,11 +4182,11 @@ class MainWindow(QMainWindow):
 
     def _nav_browser(self):
         self._set_active_nav('browser')
-        self.show_content('BROWSER INTELLIGENCE', 'Playwright & DuckDuckGo Browser Search active.\nType a query in the command input or ask ALEX to search any topic.')
+        self._show_content('BROWSER INTELLIGENCE', 'Playwright & DuckDuckGo Browser Search active.\nType a query in the command input or ask ALEX to search any topic.')
 
     def _nav_coding(self):
         self._set_active_nav('coding')
-        self.show_content('DEV LAB · CODING ASSISTANT', 'Python 3.14 Development Lab active.\nAvailable tools: code inspection, test execution, syntax analysis, refactoring.')
+        self._show_content('DEV LAB · CODING ASSISTANT', 'Python 3.14 Development Lab active.\nAvailable tools: code inspection, test execution, syntax analysis, refactoring.')
 
     def _nav_memory(self):
         self._set_active_nav('memory')
@@ -4230,9 +4199,9 @@ class MainWindow(QMainWindow):
                     for k, v in items.items():
                         val = v.get('value', v) if isinstance(v, dict) else str(v)
                         lines_m.append(f'  [{cat.upper()}] {k}: {val}')
-            self.show_content('KNOWLEDGE BRAIN', '\n'.join(lines_m[:20]))
+            self._show_content('KNOWLEDGE BRAIN', '\n'.join(lines_m[:20]))
         except Exception as e:
-            self.show_content('KNOWLEDGE BRAIN', f'Memory Manager ready. ({e})')
+            self._show_content('KNOWLEDGE BRAIN', f'Memory Manager ready. ({e})')
 
     def _nav_settings(self):
         self._set_active_nav('settings')
@@ -4245,81 +4214,55 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(8, 8, 8, 8)
         lay.setSpacing(6)
-
         def _sec(txt):
             l = QLabel(f'▸ {txt}')
             l.setFont(QFont('Segoe UI', 7, QFont.Weight.Bold))
             l.setStyleSheet('color: #00e5ff; background: transparent; letter-spacing: 1px;')
             return l
-
-        lay.addWidget(_sec('3D DIGITAL HUMAN · ADITYA'))
-        if AvatarContainerWidget is not None:
-            self.avatar_container = AvatarContainerWidget(self)
-        else:
-            self.avatar_container = QWidget(self)
-        self.avatar_container.setFixedHeight(310)
-        lay.addWidget(self.avatar_container)
-
-        sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet('color: #0f233d; margin: 2px 0;')
-        lay.addWidget(sep)
-
-        lay.addWidget(_sec('SYSTEM HEALTH & METRICS'))
+        lay.addWidget(_sec('SYSTEM HEALTH & TELEMETRY'))
         self._bar_cpu = MetricBar('CPU', C.PRI)
         self._bar_mem = MetricBar('MEM', C.ACC2)
         self._bar_net = MetricBar('NET', C.GREEN)
         self._bar_gpu = MetricBar('GPU', C.ACC)
         self._bar_tmp = MetricBar('TMP', '#ff6688')
-
-        for bar in [self._bar_cpu, self._bar_mem, self._bar_net,
-                    self._bar_gpu, self._bar_tmp]:
+        for bar in [self._bar_cpu, self._bar_mem, self._bar_net, self._bar_gpu, self._bar_tmp]:
             lay.addWidget(bar)
-
         info_panel = QWidget()
         info_panel.setStyleSheet('background: rgba(15, 23, 42, 0.7); border: 1px solid #0f233d; border-radius: 4px;')
         ip_lay = QHBoxLayout(info_panel)
         ip_lay.setContentsMargins(8, 4, 8, 4)
         ip_lay.setSpacing(8)
-
         self._uptime_lbl = QLabel('UP --:--')
         self._uptime_lbl.setFont(QFont('Courier New', 8, QFont.Weight.Bold))
         self._uptime_lbl.setStyleSheet('color: #10b981; background: transparent;')
         ip_lay.addWidget(self._uptime_lbl)
-
         self._proc_lbl = QLabel('PROC --')
         self._proc_lbl.setFont(QFont('Courier New', 8))
         self._proc_lbl.setStyleSheet('color: #94a3b8; background: transparent;')
         ip_lay.addWidget(self._proc_lbl)
-
         os_name = {'Windows': 'WIN', 'Darwin': 'macOS', 'Linux': 'LINUX'}.get(_OS, _OS.upper())
         os_lbl = QLabel(f'OS {os_name}')
         os_lbl.setFont(QFont('Courier New', 8))
         os_lbl.setStyleSheet('color: #38bdf8; background: transparent;')
         ip_lay.addWidget(os_lbl)
         lay.addWidget(info_panel)
-
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setStyleSheet('color: #0f233d; margin: 2px 0;')
         lay.addWidget(sep2)
-
         lay.addWidget(_sec('ATTACH FILE'))
         self._drop_zone = FileDropZone()
         self._drop_zone.file_selected.connect(self._on_file_selected)
         lay.addWidget(self._drop_zone)
-
         self._file_hint = QLabel('Drop or click to upload context file')
         self._file_hint.setFont(QFont('Segoe UI', 7))
         self._file_hint.setStyleSheet('color: #64748b; background: transparent;')
         self._file_hint.setWordWrap(True)
         lay.addWidget(self._file_hint)
-
         sep3 = QFrame(); sep3.setFrameShape(QFrame.Shape.HLine)
         sep3.setStyleSheet('color: #0f233d; margin: 2px 0;')
         lay.addWidget(sep3)
-
         lay.addWidget(_sec('QUICK ACTIONS'))
         q_row = QHBoxLayout(); q_row.setSpacing(4)
-
         def _qbtn(txt, fn):
             b = QPushButton(txt)
             b.setFont(QFont('Segoe UI', 7, QFont.Weight.Bold))
@@ -4328,7 +4271,6 @@ class MainWindow(QMainWindow):
             b.setStyleSheet('QPushButton { background: rgba(15, 23, 42, 0.7); color: #94a3b8; border: 1px solid #1e293b; border-radius: 4px; padding: 0 4px; } QPushButton:hover { background: rgba(0, 229, 255, 0.12); color: #00e5ff; border-color: #00e5ff; }')
             b.clicked.connect(fn)
             return b
-
         q_row.addWidget(_qbtn('📋 Brief', lambda: self.on_text_command and self.on_text_command('give me a daily briefing')))
         q_row.addWidget(_qbtn('🔍 Diag', lambda: self.on_text_command and self.on_text_command('run diagnostics')))
         q_row.addWidget(_qbtn('📸 Screen', lambda: self.on_text_command and self.on_text_command('analyze screen')))
@@ -4342,20 +4284,17 @@ class MainWindow(QMainWindow):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 6, 12, 6)
         lay.setSpacing(4)
-
         top_row = QHBoxLayout()
         self._task_status_lbl = QLabel('◈ ASSISTANT READY — WAITING FOR INPUT')
         self._task_status_lbl.setFont(QFont('Segoe UI', 8, QFont.Weight.Bold))
         self._task_status_lbl.setStyleSheet('color: #00e5ff; background: transparent; letter-spacing: 0.8px;')
         top_row.addWidget(self._task_status_lbl)
         top_row.addStretch()
-
         self._task_state_tag = QLabel('ACTIVE')
         self._task_state_tag.setFont(QFont('Segoe UI', 7, QFont.Weight.Bold))
         self._task_state_tag.setStyleSheet('color: #10b981; background: transparent;')
         top_row.addWidget(self._task_state_tag)
         lay.addLayout(top_row)
-
         self._task_progress_bar = QProgressBar()
         self._task_progress_bar.setFixedHeight(3)
         self._task_progress_bar.setTextVisible(False)
@@ -4370,7 +4309,6 @@ class MainWindow(QMainWindow):
         lay = QHBoxLayout(w)
         lay.setContentsMargins(8, 4, 8, 4)
         lay.setSpacing(6)
-
         self._mic_btn = QPushButton('🎙  VOICE ON')
         self._mic_btn.setFixedHeight(34)
         self._mic_btn.setFont(QFont('Segoe UI', 8, QFont.Weight.Bold))
@@ -4378,7 +4316,6 @@ class MainWindow(QMainWindow):
         self._mic_btn.setStyleSheet('QPushButton { background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid #10b981; border-radius: 6px; padding: 0 10px; } QPushButton:hover { background: rgba(16, 185, 129, 0.25); }')
         self._mic_btn.clicked.connect(self._toggle_mute)
         lay.addWidget(self._mic_btn)
-
         self._input = QLineEdit()
         self._input.setPlaceholderText('Message ALEX or enter a voice / tool instruction...')
         self._input.setFont(QFont('Segoe UI', 9))
@@ -4386,7 +4323,6 @@ class MainWindow(QMainWindow):
         self._input.setStyleSheet('QLineEdit { background: rgba(15, 23, 42, 0.85); color: #f8fafc; border: 1px solid #1e293b; border-radius: 6px; padding: 4px 10px; } QLineEdit:focus { border: 1px solid #00e5ff; background: rgba(15, 23, 42, 1.0); }')
         self._input.returnPressed.connect(self._send)
         lay.addWidget(self._input, stretch=1)
-
         self._send_btn = QPushButton('➤  SEND')
         self._send_btn.setFixedHeight(34)
         self._send_btn.setFont(QFont('Segoe UI', 8, QFont.Weight.Bold))
@@ -4394,7 +4330,6 @@ class MainWindow(QMainWindow):
         self._send_btn.setStyleSheet('QPushButton { background: #0284c7; color: #ffffff; border: 1px solid #38bdf8; border-radius: 6px; padding: 0 14px; } QPushButton:hover { background: #0369a1; border-color: #00e5ff; }')
         self._send_btn.clicked.connect(self._send)
         lay.addWidget(self._send_btn)
-
         self._interrupt_btn = QPushButton('🛑  STOP [ESC]')
         self._interrupt_btn.setFixedHeight(34)
         self._interrupt_btn.setFont(QFont('Segoe UI', 8, QFont.Weight.Bold))
@@ -4402,7 +4337,6 @@ class MainWindow(QMainWindow):
         self._interrupt_btn.setStyleSheet('QPushButton { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid #ef4444; border-radius: 6px; padding: 0 12px; } QPushButton:hover { background: rgba(239, 68, 68, 0.28); color: #f87171; }')
         self._interrupt_btn.clicked.connect(self._do_interrupt)
         lay.addWidget(self._interrupt_btn)
-
         self._mute_btn = self._mic_btn
         return w
 
@@ -4639,13 +4573,13 @@ class MainWindow(QMainWindow):
         from core.diagnostics import run_self_diagnostics, format_diagnostics_report
         results = run_self_diagnostics()
         report = format_diagnostics_report(results, lang="hinglish")
-        self.show_content("SYSTEM HEALTH REPORT", report)
+        self._show_content("SYSTEM HEALTH REPORT", report)
         self._log.append_log("SYS: Health diagnostics completed. Report displayed in content panel.")
 
     def _show_timeline_ui(self):
         from core.action_timeline import timeline
         report = timeline.format_timeline(limit=15)
-        self.show_content("ACTION TIMELINE", report)
+        self._show_content("ACTION TIMELINE", report)
         self._log.append_log("SYS: Action timeline displayed in content panel.")
 
     def _show_security_center_ui(self):
@@ -4667,16 +4601,18 @@ class MainWindow(QMainWindow):
         ]
         for k, v in priv_st.items():
             sec_lines.append(f"  • {k.capitalize()}: {'ALLOWED' if v else 'BLOCKED'}")
-        self.show_content("SECURITY & PRIVACY", "\n".join(sec_lines))
+        self._show_content("SECURITY & PRIVACY", "\n".join(sec_lines))
         self._log.append_log("SYS: Security & Privacy Center opened in content panel.")
 
     def _show_task_center_ui(self):
         from core.task_center import task_center
         summary = task_center.format_task_center_summary()
-        self.show_content("TASK CENTER", summary)
+        self._show_content("TASK CENTER", summary)
         self._log.append_log("SYS: Task Center summary displayed in content panel.")
 
-    def _toggle_drawer(self, checked: bool):
+    def _toggle_drawer(self, checked: bool = None):
+        if checked is None:
+            checked = not getattr(self, "_quick_drawer", None) or not self._quick_drawer.isVisible()
         if checked:
             self._close_controls()
             self._position_quick_drawer()
@@ -4685,7 +4621,9 @@ class MainWindow(QMainWindow):
         else:
             self._quick_drawer.hide()
 
-    def _toggle_controls(self, checked: bool):
+    def _toggle_controls(self, checked: bool = None):
+        if checked is None:
+            checked = not getattr(self, "_ctrl_drawer", None) or not self._ctrl_drawer.isVisible()
         if checked:
             self._close_setup()
             self._refresh_wake_btns()   # cheap now: the state was warmed at boot
@@ -4848,6 +4786,9 @@ class MainWindow(QMainWindow):
         lay.addWidget(self._content_display)
 
         return w
+
+    def show_content(self, title: str, text: str):
+        return self._show_content(title, text)
 
     def _show_content(self, title: str, text: str):
         """Slot — runs on Qt main thread. Updates and shows the content panel."""
@@ -5228,13 +5169,11 @@ class MainWindow(QMainWindow):
         w.setStyleSheet('background: #020712; border-top: 1px solid #0f233d;')
         lay = QHBoxLayout(w)
         lay.setContentsMargins(16, 0, 16, 0)
-
         def _fl(txt, color='#64748b'):
             l = QLabel(txt)
             l.setFont(QFont('Segoe UI', 7))
             l.setStyleSheet(f'color: {color}; background: transparent;')
             return l
-
         lay.addWidget(_fl('[F4] Mute Voice   •   [ESC] Interrupt   •   [F11] Fullscreen'))
         lay.addStretch()
         lay.addWidget(_fl('ALEX 3.0 · Personal AI Assistant for Aditya Rajak', '#00e5ff'))
@@ -5794,6 +5733,9 @@ class MainWindow(QMainWindow):
 
     # ── Audio devices ────────────────────────────────────────────────────────
 
+    def _show_audio_devices(self):
+        return self._open_audio_devices()
+
     def _open_audio_devices(self):
         ov = AudioDeviceOverlay(parent=self.centralWidget())
         ov.picked.connect(self._on_audio_devices_applied)
@@ -5952,10 +5894,6 @@ class MainWindow(QMainWindow):
         if hasattr(self, "hud") and self.hud is not None:
             self.hud.state    = state
             self.hud.speaking = (state == "SPEAKING")
-        if hasattr(self, "avatar_container") and self.avatar_container is not None and hasattr(self.avatar_container, "set_state"):
-            self.avatar_container.set_state(state)
-        if avatar_bridge is not None:
-            avatar_bridge.set_state(state)
         self._update_task_status(state)
 
     def _update_task_status(self, state: str):
@@ -6008,16 +5946,10 @@ class MainWindow(QMainWindow):
     def set_audio_level(self, level: float):
         if hasattr(self, "hud") and self.hud is not None:
             self.hud.set_audio_level(level)
-        if hasattr(self, "avatar_container") and self.avatar_container is not None and hasattr(self.avatar_container, "set_audio_level"):
-            self.avatar_container.set_audio_level(level)
-        if avatar_bridge is not None:
-            avatar_bridge.set_audio_level(level)
 
     def push_visemes(self, frames, hop: float, at: float):
         if hasattr(self, "hud") and self.hud is not None:
             self.hud.push_visemes(frames, hop, at)
-        if avatar_bridge is not None:
-            avatar_bridge.push_visemes(frames, hop, at)
 
     def _check_config(self) -> bool:
         if not API_FILE.exists(): return False
@@ -6196,7 +6128,7 @@ class AlexUI:
         Called from the audio threads; a plain float store is atomic under the
         GIL, so no signal/lock is needed for this cosmetic value."""
         try:
-            self._win.hud.set_audio_level(level)
+            self._win.set_audio_level(level)
         except Exception:
             pass
 
@@ -6229,7 +6161,7 @@ class AlexUI:
         for ALEX's own speech. `at` is the wall-clock time the batch begins to
         sound, not the time of the call. See HudCanvas.push_visemes()."""
         try:
-            self._win.hud.push_visemes(frames, hop, at)
+            self._win.push_visemes(frames, hop, at)
         except Exception:
             pass
 

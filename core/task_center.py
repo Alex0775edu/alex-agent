@@ -105,6 +105,7 @@ class TaskCenter:
 
     def __init__(self):
         self._tasks: Dict[str, TaskItem] = {}
+        self._cancel_events: Dict[str, threading.Event] = {}
         self._autonomy_level: str = AutonomyLevel.NORMAL
         self._load()
 
@@ -199,7 +200,7 @@ class TaskCenter:
             return True
         if self._autonomy_level == AutonomyLevel.ASK_EVERYTHING:
             return True
-        if self._autonomy_level == AutonomyLevel.NORMAL and risk == "CONFIRM":
+        if self._autonomy_level == AutonomyLevel.NORMAL and risk in ("CONFIRM", "PRIVILEGED"):
             return True
         return False
 
@@ -239,13 +240,17 @@ class TaskCenter:
     def set_task_planning(self, task_id: str) -> None:
         with self._lock:
             if task_id in self._tasks:
-                self._tasks[task_id].status = TaskStatus.PLANNING
+                task = self._tasks[task_id]
+                if task.status not in (TaskStatus.CANCELLED, TaskStatus.FAILED, TaskStatus.COMPLETED):
+                    task.status = TaskStatus.PLANNING
         self._persist()
 
     def set_task_running(self, task_id: str, step_index: int = 0) -> None:
         with self._lock:
             if task_id in self._tasks:
                 t = self._tasks[task_id]
+                if t.status in (TaskStatus.CANCELLED, TaskStatus.FAILED, TaskStatus.COMPLETED):
+                    return
                 t.status = TaskStatus.RUNNING
                 t.current_step = step_index
         self._persist()
@@ -254,6 +259,8 @@ class TaskCenter:
         with self._lock:
             if task_id in self._tasks:
                 t = self._tasks[task_id]
+                if t.status in (TaskStatus.CANCELLED, TaskStatus.FAILED, TaskStatus.COMPLETED):
+                    return
                 t.status = TaskStatus.WAITING
                 if reason:
                     t.verification = f"Waiting: {reason}"
@@ -263,6 +270,8 @@ class TaskCenter:
         with self._lock:
             if task_id in self._tasks:
                 t = self._tasks[task_id]
+                if t.status in (TaskStatus.CANCELLED, TaskStatus.FAILED, TaskStatus.COMPLETED):
+                    return
                 t.status = TaskStatus.VERIFYING
                 t.verification = "Verifying outcome..."
         self._persist()
@@ -300,14 +309,35 @@ class TaskCenter:
 
     def cancel_task(self, task_id: str) -> bool:
         with self._lock:
-            if task_id in self._tasks:
-                t = self._tasks[task_id]
-                if t.status not in (TaskStatus.COMPLETED, TaskStatus.CANCELLED):
-                    t.status = TaskStatus.CANCELLED
-                    t.end_time = time.monotonic()
-                    self._persist()
-                    return True
-        return False
+            task = self._tasks.get(task_id)
+            if not task or task.status in (TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.FAILED):
+                return False
+            cancel_event = self._cancel_events.get(task_id)
+            if cancel_event:
+                cancel_event.set()
+            task.status = TaskStatus.CANCELLED
+            task.end_time = time.monotonic()
+        self._persist()
+        return True
+
+    def register_cancel_event(self, task_id: str, cancel_event: threading.Event) -> bool:
+        """Connect a live task to its executor's cancellation signal."""
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if not task:
+                return False
+            if task.status == TaskStatus.CANCELLED:
+                cancel_event.set()
+                return False
+            if task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED):
+                return False
+            self._cancel_events[task_id] = cancel_event
+            return True
+
+    def unregister_cancel_event(self, task_id: str, cancel_event: threading.Event) -> None:
+        with self._lock:
+            if self._cancel_events.get(task_id) is cancel_event:
+                self._cancel_events.pop(task_id, None)
 
     def retry_task(self, task_id: str) -> Optional[TaskItem]:
         with self._lock:
@@ -332,28 +362,69 @@ class TaskCenter:
         verification: str = "Verified",
         generated_files: Optional[List[str]] = None
     ) -> None:
+        changed = False
         with self._lock:
             if task_id in self._tasks:
                 t = self._tasks[task_id]
-                t.status = TaskStatus.COMPLETED
-                t.result = result
-                t.verification = verification
-                if generated_files:
-                    for gf in generated_files:
-                        if gf not in t.generated_files:
-                            t.generated_files.append(gf)
-                t.end_time = time.monotonic()
-        self._persist()
+                if t.status in (TaskStatus.CANCELLED, TaskStatus.FAILED, TaskStatus.COMPLETED):
+                    return
+                cancel_event = self._cancel_events.get(task_id)
+                if cancel_event and cancel_event.is_set():
+                    t.status = TaskStatus.CANCELLED
+                    t.end_time = time.monotonic()
+                else:
+                    t.status = TaskStatus.COMPLETED
+                    t.result = result
+                    t.verification = verification
+                    if generated_files:
+                        for gf in generated_files:
+                            if gf not in t.generated_files:
+                                t.generated_files.append(gf)
+                    t.end_time = time.monotonic()
+                changed = True
+        if changed:
+            self._persist()
 
     def fail_task(self, task_id: str, error_msg: str) -> None:
         with self._lock:
             if task_id in self._tasks:
                 t = self._tasks[task_id]
+                if t.status in (TaskStatus.CANCELLED, TaskStatus.COMPLETED, TaskStatus.FAILED):
+                    return
                 t.status = TaskStatus.FAILED
                 t.errors.append(error_msg)
                 t.verification = "Verification Failed"
                 t.end_time = time.monotonic()
         self._persist()
+
+    def format_task_center_summary(self, limit: int = 8) -> str:
+        """Return a compact, UI-safe summary of active and recent tasks."""
+        tasks = self.get_tasks()
+        if not tasks:
+            return "Task Center: no tasks recorded."
+
+        active_statuses = {
+            TaskStatus.QUEUED,
+            TaskStatus.PLANNING,
+            TaskStatus.RUNNING,
+            TaskStatus.WAITING,
+            TaskStatus.VERIFYING,
+            TaskStatus.PAUSED,
+        }
+        active = [task for task in tasks if task.status in active_statuses]
+        recent = [task for task in reversed(tasks) if task not in active][:max(0, limit)]
+        shown = active + recent
+        lines = [
+            f"Task Center — {len(active)} active, "
+            f"{sum(task.status == TaskStatus.COMPLETED for task in tasks)} completed, "
+            f"{sum(task.status in (TaskStatus.FAILED, TaskStatus.CANCELLED) for task in tasks)} failed/cancelled."
+        ]
+        for task in shown:
+            lines.append(
+                f"[{task.status}] {task.goal} "
+                f"({task.progress_pct}% — step {task.current_step}/{task.total_steps}; ID {task.task_id})"
+            )
+        return "\n".join(lines)
 
     def inspect_task_errors(self, task_id: str) -> List[str]:
         with self._lock:
@@ -386,6 +457,9 @@ class TaskCenter:
     def get_task(self, task_id: str) -> Optional[TaskItem]:
         with self._lock:
             return self._tasks.get(task_id)
+
+    def get_tasks(self) -> List[TaskItem]:
+        return self.list_tasks_by_status()
 
     def list_tasks_by_status(self, status: Optional[str] = None) -> List[TaskItem]:
         with self._lock:

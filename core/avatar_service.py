@@ -131,3 +131,4 @@ class AvatarServerManager:
 
 
 avatar_server = AvatarServerManager.get_instance()
+

@@ -33,6 +33,13 @@ _SECRET_PATTERNS = [
     (re.compile(r"(owner[_-]?pin\s*[:=]\s*['\"]?)(\d{4,})(['\"]?)", re.IGNORECASE), r"\1[REDACTED_PIN]\3"),
 ]
 
+_EMAIL_PATTERN = re.compile(
+    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
+)
+_PHONE_PATTERN = re.compile(
+    r"(?<!\w)\+?\d[\d\s().-]{7,}\d(?!\w)"
+)
+
 
 class PrivateDataFirewall:
     """Detects and redacts credentials, private keys, and secrets."""
@@ -54,10 +61,25 @@ class PrivateDataFirewall:
             return False
         return any(pattern.search(text) for pattern, _ in _SECRET_PATTERNS)
 
+    @staticmethod
+    def redact_personal_data(text: str) -> str:
+        """Mask common contact details after credential redaction."""
+        if not text:
+            return ""
+        sanitized = _EMAIL_PATTERN.sub("[REDACTED_EMAIL]", text)
+
+        def replace_phone(match: re.Match[str]) -> str:
+            digits = re.sub(r"\D", "", match.group(0))
+            return "[REDACTED_PHONE]" if 10 <= len(digits) <= 15 else match.group(0)
+
+        return _PHONE_PATTERN.sub(replace_phone, sanitized)
+
 
 # Global helper
 def redact(text: str) -> str:
-    return PrivateDataFirewall.redact_secrets(text)
+    return PrivateDataFirewall.redact_personal_data(
+        PrivateDataFirewall.redact_secrets(text)
+    )
 
 
 def inspect_prompt_safety(text: str) -> Tuple[bool, str]:

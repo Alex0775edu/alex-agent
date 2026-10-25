@@ -529,6 +529,23 @@ class DashboardServer:
             tok = req.headers.get("authorization", "").removeprefix("Bearer ").strip()
             return bool(tok) and tok in self._tokens
 
+        # Serve 3D Digital Human Avatar
+        @app.get("/avatar", response_class=HTMLResponse)
+        async def avatar_index():
+            f_path = STATIC_DIR / "avatar" / "index.html"
+            if f_path.exists():
+                return HTMLResponse(f_path.read_text(encoding="utf-8"))
+            return HTMLResponse("<h3>3D Avatar view not found</h3>", status_code=404)
+
+        @app.get("/avatar/{file_path:path}")
+        async def serve_avatar_assets(file_path: str):
+            f_path = STATIC_DIR / "avatar" / (file_path or "index.html")
+            if f_path.is_dir():
+                f_path = f_path / "index.html"
+            if f_path.exists():
+                return FileResponse(str(f_path))
+            return JSONResponse({"error": "Avatar asset not found"}, status_code=404)
+
         # serve CryptoJS from local cache, fallback to CDN redirect
         @app.get("/static/crypto.js")
         async def serve_crypto():

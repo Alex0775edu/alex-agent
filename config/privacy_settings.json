@@ -1,9 +1,14 @@
 {
-  "screen": true,
-  "camera": true,
   "microphone": true,
-  "recording": false,
+  "camera": true,
+  "screen": true,
+  "memory": true,
+  "clipboard": true,
+  "browser": true,
+  "files": true,
   "remote_access": false,
+  "voice_profile": true,
+  "recording": false,
   "retention_minutes": 15,
   "sensitive_patterns": [
     "1password",

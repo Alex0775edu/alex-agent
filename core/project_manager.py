@@ -456,12 +456,35 @@ class ProjectManager:
 
     def get_project(self, project_name: str) -> Optional[ProjectInfo]:
         """Lookup ProjectInfo by project name."""
+        if not project_name:
+            return None
+        if project_name.lower() in ("alex", "alex ai", "alex 3.0", "alex 4.0", "current", "this", "my project", "mere project"):
+            if "alex" not in self._projects:
+                self._projects["alex"] = ProjectInfo(
+                    name="alex",
+                    path=str(BASE_DIR),
+                    tech_stack="Python 3.14 + PyQt6 + AI Operating Assistant",
+                    git_status="Clean",
+                    git_branch="feature/autonomous-task-orchestrator-2",
+                    entry_point="main.py",
+                    dependencies_file="requirements.txt",
+                    build_run_command="python main.py",
+                    health_status="HEALTHY",
+                    health_reason="Active local workspace",
+                    status="Active",
+                    description="ALEX AI Desktop Operating Assistant"
+                )
+            return self._projects["alex"]
+        matches = [k for k in self._projects if k.lower() == project_name.lower()]
+        if matches:
+            return self._projects[matches[0]]
         return self._projects.get(project_name)
 
     def get_project_context(self, project_name: Optional[str] = None) -> Dict[str, Any]:
         p = project_name or self._active_project
-        if p in self._projects:
-            d = asdict(self._projects[p])
+        proj = self.get_project(p)
+        if proj:
+            d = asdict(proj)
             d["tasks"] = d.get("active_tasks", [])
             return d
         return {"status": "Active", "tasks": [], "name": p}
@@ -487,7 +510,7 @@ class ProjectManager:
         matches = [k for k in self._projects if k.lower() == p_name.lower()]
         p_name = matches[0] if matches else p_name
 
-        p = self._projects.get(p_name)
+        p = self.get_project(p_name)
         if not p:
             return f"{OWNER_ADDRESS}, project '{p_name}' nahi mila. Aap 'Alex, mere projects ki list dikhao' bol kar check kar sakte hain."
 

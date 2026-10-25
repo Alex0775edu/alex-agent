@@ -600,6 +600,10 @@ class AlexLive:
         self.ui.on_interrupt      = self.interrupt
         self.ui.on_voice_change   = self._on_voice_change     # voice picker → rebuild session
         self.ui.on_audio_device_change = self._on_audio_device_change
+        from core.voice_pipeline import voice_pipeline
+        voice_pipeline.state_callback = self.ui.set_state
+        voice_pipeline.log_callback   = self.ui.write_log
+        voice_pipeline.speak_callback = self.speak
         self._reconnect_event: asyncio.Event | None = None
         self._reconnect_keep = True   # False → next rebuild drops the resumption handle
 
@@ -748,7 +752,10 @@ class AlexLive:
         self._awake = True
         self._last_user_speech = time.monotonic()   # start the auto-sleep clock now
         if not self.ui.muted:
-            self.ui.set_state("LISTENING")
+            if "failed" in str(result).lower() or "error" in str(result).lower():
+                self.ui.set_state("ERROR")
+            else:
+                self.ui.set_state("SUCCESS")
         self.ui.write_log(f"SYS: Awake — {reason}.")
         # If morning briefing was deferred because of wake-word sleep, fire it now
         if not self._briefing_sent and get_brief_enabled() and self.session:
@@ -899,57 +906,33 @@ class AlexLive:
         return url, key, f"{url}/auto-login?key={key}", manual
 
     def _on_text_command(self, text: str):
-        from core.security import security_manager
-        security_manager.touch()
-
-        # 1. Fast local intent engine execution (<50ms, works even offline)
-        from core.intent_engine import intent_engine
-        res = intent_engine.parse(text)
-        if res.is_local_command:
-            executed = intent_engine.execute_local_command(res)
-            if executed.handled:
-                self.ui.write_log(f"You: {text}")
-                self.ui.write_log(f"ALEX: {executed.response_text}")
-                self.speak(executed.response_text)
-                return
-
-        # 2. Security Lock Check
-        from core.security import security_manager
-        if security_manager.is_locked():
-            self.ui.write_log(f"You: {text}")
-            self.ui.write_log("SYS: 🔒 ALEX is locked. Please unlock via UI or provide owner PIN.")
-            self.speak("ALEX is locked, Sir. Please unlock to execute privileged actions.")
-            return
+        from core.voice_pipeline import should_forward_to_live_session, voice_pipeline
+        voice_pipeline.state_callback = self.ui.set_state
+        voice_pipeline.log_callback   = self.ui.write_log
+        voice_pipeline.speak_callback = self.speak
 
         # Respect wake-word sleep
         if self._wake_enabled and not self._awake:
             self.ui.write_log("SYS: I'm asleep — say 'Hey Alex' or tap WAKE NOW first.")
             return
 
-        if not self._loop or not self.session:
-            self.ui.write_log(f"You: {text}")
-            # Resilient fallback: answer via REST model ladder (gemini-3.1-flash-lite / 3.8-flash) + TTS
-            try:
-                self.ui.set_state("THINKING")
-                resp = _gemini.call(text, tier=_gemini.FAST)
-                answer = getattr(resp, "text", "") or ""
-                if answer:
-                    clean_ans = answer.strip()
-                    self.ui.write_log(f"{self._asst_name}: {clean_ans}")
-                    self.speak(clean_ans)
-                    return
-            except Exception as _e:
-                print(f"[ALEX] REST fallback query error: {_e}")
-            self.ui.write_log("SYS: Offline mode — connect to the internet for complex AI reasoning.")
+        # Execute through the unified voice-to-action pipeline
+        result = voice_pipeline.process_text_command(text, engine_used="typed_input")
+        if result.success and result.intent != "GENERAL_QUERY":
             return
 
-        asyncio.run_coroutine_threadsafe(
-            self.session.send_client_content(
-                turns={"role": "user", "parts": [{"text": text}]},
-                turn_complete=True
-            ),
-            self._loop
-        )
+        if not should_forward_to_live_session(result):
+            return
+
+        # Fallback to session client content if available
+        if self._loop and self.session:
+            asyncio.run_coroutine_threadsafe(
+                self.session.send_client_content(
+                    turns={"role": "user", "parts": [{"text": text}]},
+                    turn_complete=True
+                ),
+                self._loop
+            )
 
     def _tail_active(self) -> bool:
         """True while the speakers may still be finishing our last sentence."""
@@ -1039,6 +1022,8 @@ class AlexLive:
         self._play_cursor = 0.0     # next batch starts a fresh timeline
         if self._turn_done_event:
             self._turn_done_event.clear()
+        from core.voice_pipeline import voice_pipeline
+        voice_pipeline.cancel()
         self.ui.write_log("SYS: Interrupted — listening...")
 
     def speak(self, text: str):
@@ -1238,7 +1223,7 @@ class AlexLive:
         args = dict(fc.args or {})
 
         print(f"[ALEX] 🔧 {name}  {args}")
-        self.ui.set_state("THINKING")
+        self.ui.set_state("EXECUTING")
 
         # ── Security Firewall & Authorization Gate ─────────────────────────
         from core.security import security_manager
